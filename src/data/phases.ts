@@ -10,7 +10,7 @@ export interface Step {
   time: string;
   code: string;
   detail: string;
-  troubleshooting: TroubleshootingTip[];
+  troubleshooting?: TroubleshootingTip[];
 }
 
 export interface Phase {
@@ -21,7 +21,26 @@ export interface Phase {
   bg: string;
   border: string;
   steps: Step[];
+  fork?: string;
+  forkGroup?: string;
+  forkLabel?: string;
 }
+
+export interface StepMeta {
+  key: string;
+  phaseId: string;
+  phaseNumber: string;
+  stepNum: number;
+  action: string;
+  time: string;
+}
+
+export type StepAction =
+  | null
+  | { type: 'toggle'; key: string }
+  | { type: 'navigate'; from: string; to: string }
+  | { type: 'expand_all'; phaseId: string; keys: string[] }
+  | { type: 'collapse_all'; phaseId: string; keys: string[] };
 
 export const phases: Phase[] = [
   {
