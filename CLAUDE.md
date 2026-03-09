@@ -45,15 +45,17 @@ Interactive course companion for AI4Dev — a React + TypeScript single-page app
 3. `mise run build` — production build must succeed
 
 ## Commit message rules (Conventional Commits)
-- Format: `<type>(<scope>): <description>`
-- Types: `feat` | `fix` | `docs` | `style` | `refactor` | `test` | `chore`
-- scope = component or module name, e.g. `feat(phase-card):` or `fix(exercise-panel):`
+- Format: <type>(<scope>): <description>
+- Types: feat | fix | docs | style | refactor | test | chore | perf | ci
+- scope = task ID or module name, e.g. feat(task-7): or fix(auth):
 - Description: imperative, lowercase, no period, max 72 chars
+- Breaking changes: add BREAKING CHANGE: in footer
 - Examples:
-    - `feat(spellbook): add exercise reveal toggle`
-    - `fix(code-block): fallback copy for sandboxed iframes`
-    - `chore(deps): upgrade tailwindcss to v4.1`
-- Never use generic messages like "fix bug" or "update styles"
+  feat(stripe): add webhook signature validation
+  fix(auth): handle 401 on token refresh
+  test(pdf): add export edge case coverage
+  chore(deps): upgrade stripe-node to v14
+- NEVER use generic messages like "fix bug" or "update code"
 
 ## What NOT to do
 - Never install a CSS-in-JS library (styled-components, emotion, etc.) — Tailwind only
