@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+@theme {
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Phase accent colors */
+  --color-phase-0: #43FFAB;
+  --color-phase-1: #64FFDA;
+  --color-phase-2: #FFD166;
+  --color-phase-2b: #FF6EC7;
+  --color-phase-3: #FF6B9D;
+
+  /* UI base colors */
+  --color-bg-base: #0D1117;
+  --color-text-primary: #E6EDF3;
+  --color-text-secondary: #8B949E;
+  --color-text-muted: #444C56;
+  --color-surface: #161B22;
+  --color-border: #2D3340;
+  --color-error: #FF6B6B;
+}

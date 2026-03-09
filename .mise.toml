@@ -1,0 +1,18 @@
+[tools]
+node = "22"
+pnpm = "latest"
+
+[tasks.dev]
+run = "pnpm dev"
+
+[tasks.build]
+run = "pnpm build"
+
+[tasks.preview]
+run = "pnpm preview"
+
+[tasks.typecheck]
+run = "pnpm typecheck"
+
+[tasks.lint]
+run = "pnpm lint"
