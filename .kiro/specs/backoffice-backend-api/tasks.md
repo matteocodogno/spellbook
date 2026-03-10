@@ -8,7 +8,7 @@
 
 ---
 
-- [ ] 1. Verify and validate the jOOQ code generation Maven plugin configuration
+- [x] 1. Verify and validate the jOOQ code generation Maven plugin configuration
   - Confirm `jooq-codegen-maven` is bound to the `generate-sources` lifecycle phase in `pom.xml` so that Kotlin records are generated automatically on every `mvn compile` or `mvn package` — no manual step required
   - Verify the `KotlinGenerator` targets `io.stageboard.spellbook.generated` and reads from `db.changelog-master.xml` via `LiquibaseDatabase` (no live database required at build time)
   - Confirm `target/generated-sources/jooq/` is wired as an additional Kotlin compiler source directory so the generated records are visible to hand-written code

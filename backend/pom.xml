@@ -22,7 +22,6 @@
     <java.version>21</java.version>
     <kotlin.version>2.3.10</kotlin.version>
     <jooq.version>3.20.8</jooq.version>
-    <liquibase.version>5.0.2</liquibase.version>
     <aws.sdk.version>2.42.8</aws.sdk.version>
     <commonmark.version>0.27.1</commonmark.version>
     <tika.version>3.2.3</tika.version>
@@ -69,13 +68,8 @@
       <version>${jooq.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.liquibase</groupId>
-      <artifactId>liquibase-core</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.liquibase</groupId>
-      <artifactId>liquibase-spring-boot-starter</artifactId>
-      <version>${liquibase.version}</version>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-liquibase</artifactId>
     </dependency>
     <dependency>
       <groupId>org.postgresql</groupId>
@@ -166,6 +160,12 @@
             <id>compile</id>
             <goals><goal>compile</goal></goals>
             <phase>compile</phase>
+            <configuration>
+              <sourceDirs>
+                <sourceDir>${project.basedir}/src/main/kotlin</sourceDir>
+                <sourceDir>${project.build.directory}/generated-sources/jooq</sourceDir>
+              </sourceDirs>
+            </configuration>
           </execution>
           <execution>
             <id>test-compile</id>
@@ -188,8 +188,6 @@
         <version>${jooq.version}</version>
         <executions>
           <execution>
-            <id>jooq-codegen</id>
-            <phase>generate-sources</phase>
             <goals><goal>generate</goal></goals>
           </execution>
         </executions>
@@ -202,33 +200,50 @@
           <dependency>
             <groupId>org.liquibase</groupId>
             <artifactId>liquibase-core</artifactId>
-            <version>${liquibase.version}</version>
+            <version>4.29.2</version>
           </dependency>
         </dependencies>
         <configuration>
+          <detail>true</detail>
           <generator>
             <name>org.jooq.codegen.KotlinGenerator</name>
             <database>
               <name>org.jooq.meta.extensions.liquibase.LiquibaseDatabase</name>
               <properties>
                 <property>
+                  <key>rootPath</key>
+                  <value>${basedir}/src/main/resources/db/changelog</value>
+                </property>
+                <property>
                   <key>scripts</key>
-                  <value>src/main/resources/db/changelog/db.changelog-master.xml</value>
+                  <value>db.changelog-master.xml</value>
                 </property>
                 <property>
                   <key>includeLiquibaseTables</key>
                   <value>false</value>
                 </property>
+                <property>
+                  <key>database.liquibaseSchemaName</key>
+                  <value>public</value>
+                </property>
+                <property>
+                  <key>changeLogParameters.contexts</key>
+                  <value>!test,!generate_skip</value>
+                </property>
               </properties>
             </database>
             <generate>
+              <deprecated>false</deprecated>
+              <records>true</records>
               <pojos>false</pojos>
-              <daos>false</daos>
             </generate>
             <target>
               <packageName>io.stageboard.spellbook.generated</packageName>
               <directory>target/generated-sources/jooq</directory>
             </target>
+            <strategy>
+              <name>org.jooq.codegen.DefaultGeneratorStrategy</name>
+            </strategy>
           </generator>
         </configuration>
       </plugin>
