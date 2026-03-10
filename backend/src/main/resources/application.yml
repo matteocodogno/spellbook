@@ -35,6 +35,6 @@ app:
     secret: ${JWT_SECRET:change-me-in-production-this-must-be-at-least-256-bits}
     expiration-ms: 86400000
   cors:
-    allowed-origin: ${BACKOFFICE_ORIGIN:http://localhost:5173}
+    allowed-origin: ${FRONTEND_ORIGIN:http://localhost:5173}
   oauth:
     callback-base-url: ${OAUTH_CALLBACK_BASE_URL:http://localhost:8080}
