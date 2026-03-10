@@ -60,8 +60,6 @@ Interactive course companion for AI4Dev — a React + TypeScript single-page app
 ## What NOT to do
 - Never install a CSS-in-JS library (styled-components, emotion, etc.) — Tailwind only
 - Never add a state management library unless explicitly requested
-- Never add a router — this is a single-page app with no routes
-- Never modify `index.html` without checking with the human first
 - Never autonomously modify this CLAUDE.md — propose changes to the human instead
 
 # AI-DLC and Spec-Driven Development
