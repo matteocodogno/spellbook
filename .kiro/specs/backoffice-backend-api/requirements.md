@@ -20,8 +20,8 @@ and converted to `DomainError` variants.
 
 ```kotlin
 // Existing infrastructure — do NOT redesign, USE as-is:
-// ch.welld.soa.automation.common.model.Result<T>        (Success / Failure)
-// ch.welld.soa.automation.common.model.DomainError      (DatabaseError / ValidationError /
+// io.stageboard.spellbook.common.model.Result<T>        (Success / Failure)
+// io.stageboard.spellbook.common.model.DomainError      (DatabaseError / ValidationError /
 //                                                         NotFoundError / UnexpectedError / StateError)
 ```
 

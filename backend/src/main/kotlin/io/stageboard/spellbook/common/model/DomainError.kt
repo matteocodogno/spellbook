@@ -1,4 +1,4 @@
-package ch.welld.soa.automation.common.model
+package io.stageboard.spellbook.common.model
 
 /**
  * Represents a sealed class for domain-specific errors in the application.

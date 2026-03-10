@@ -1,4 +1,4 @@
-package ch.welld.soa.automation
+package io.stageboard.spellbook
 
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication

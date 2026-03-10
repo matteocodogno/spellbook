@@ -98,7 +98,7 @@
 
 ### Decision: `Result<T>` Pipeline as Primary Error-Handling Contract
 
-- **Context**: Existing infrastructure at `ch.welld.soa.automation.common.model` already provides `Result<T>` and `DomainError`.
+- **Context**: Existing infrastructure at `io.stageboard.spellbook.common.model` already provides `Result<T>` and `DomainError`.
 - **Alternatives Considered**:
   1. Throw exceptions everywhere — violates non-negotiable C-02
   2. Use Kotlin `Either` (Arrow) — adds a dependency and duplicates existing infrastructure

@@ -1,4 +1,4 @@
-package ch.welld.soa.automation.common.model
+package io.stageboard.spellbook.common.model
 
 import org.springframework.dao.DataAccessException
 

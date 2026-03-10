@@ -1,4 +1,4 @@
-package ch.welld.soa.automation
+package io.stageboard.spellbook
 
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.SpringBootTest

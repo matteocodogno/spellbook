@@ -6,7 +6,7 @@
 stageboard/
 ├── backend/                        # Spring Boot / Kotlin REST API (Maven)
 │   ├── src/
-│   │   ├── main/kotlin/ch/welld/soa/automation/
+│   │   ├── main/kotlin/io/stageboard/spellbook/
 │   │   │   ├── auth/               # AuthController, AuthService
 │   │   │   ├── workshop/           # WorkshopController, WorkshopService, WorkshopRepository
 │   │   │   ├── phase/
@@ -102,7 +102,7 @@ Domain-driven package structure; one package per bounded context.
 ### Package Layout
 
 ```
-ch.welld.soa.automation/
+io.stageboard.spellbook/
 ├── auth/
 │   ├── AuthController.kt
 │   ├── AuthService.kt

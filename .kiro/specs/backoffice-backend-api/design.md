@@ -7,7 +7,7 @@ It exposes the REST contracts defined in `.kiro/specs/backoffice-content-authori
 content (workshops, phases, steps, versions, locks) to PostgreSQL.
 
 The service is a Spring Boot 4.x MVC application written in Kotlin. All fallible operations return `Result<T>` from the
-existing `ch.welld.soa.automation.common.model` infrastructure; no exception is used as primary control flow.
+existing `io.stageboard.spellbook.common.model` infrastructure; no exception is used as primary control flow.
 Authentication is handled entirely server-side via Spring Security OAuth2/OIDC (Google, GitHub, X/Twitter) and an
 email-password path, issuing httpOnly JWT cookies.
 
@@ -37,8 +37,8 @@ domain objects, and explicit transaction boundaries via jOOQ's `DSLContext.trans
 
 ### Existing Architecture Analysis
 
-The existing codebase provides `ch.welld.soa.automation.common.model.Result<T>` (sealed `Success`/`Failure`) and
-`ch.welld.soa.automation.common.model.DomainError` (sealed `DatabaseError` / `ValidationError` / `NotFoundError` /
+The existing codebase provides `io.stageboard.spellbook.common.model.Result<T>` (sealed `Success`/`Failure`) and
+`io.stageboard.spellbook.common.model.DomainError` (sealed `DatabaseError` / `ValidationError` / `NotFoundError` /
 `UnexpectedError` / `StateError`). These must be imported and used as-is; no redesign or duplication is permitted.
 
 The steering document `backend.md` mandates the exact layer boundary:
@@ -141,7 +141,7 @@ graph TB
 | Markdown parsing   | `commonmark-java` 0.27.x                            | AST traversal for H2/H3 heading extraction         | Visitor API; CommonMark-compliant                   |
 | MIME detection     | Apache Tika 3.x (`tika-core`)                       | Server-side MIME validation (Req 9.3)              | Content inspection, not filename                    |
 | Build              | Maven + `kotlin-maven-plugin` + `spring-boot-maven-plugin` | Build, jOOQ record codegen, Liquibase integration | `jooq-codegen-maven` bound to `generate-sources` phase |
-| Error contract     | `ch.welld.soa.automation.common.model.Result`        | Existing sealed class — DO NOT redesign            | `Success` / `Failure` + `DomainError` subtypes      |
+| Error contract     | `io.stageboard.spellbook.common.model.Result`        | Existing sealed class — DO NOT redesign            | `Success` / `Failure` + `DomainError` subtypes      |
 
 ---
 
@@ -316,7 +316,7 @@ sequenceDiagram
 **Service Interface (Kotlin extension)**
 
 ```kotlin
-// backend/src/main/kotlin/ch/welld/soa/automation/common/ext/ResultExt.kt
+// backend/src/main/kotlin/io/stageboard/spellbook/common/ext/ResultExt.kt
 fun <T> Result<T>.toResponseEntity(
     successStatus: HttpStatus = HttpStatus.OK,
     successBody: (T) -> Any? = { it }
@@ -1111,7 +1111,7 @@ Controllers call `result.toResponseEntity(successStatus)` to produce the `Respon
                         </properties>
                     </database>
                     <target>
-                        <packageName>ch.welld.soa.automation.generated</packageName>
+                        <packageName>io.stageboard.spellbook.generated</packageName>
                         <directory>target/generated-sources/jooq</directory>
                     </target>
                 </generator>

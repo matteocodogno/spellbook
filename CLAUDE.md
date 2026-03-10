@@ -53,7 +53,7 @@ stageboard/
 ## Backend code style
 - Kotlin 2.3, JVM 21 — functional idioms; no Java source files
 - Spring MVC (blocking) only — no WebFlux, Reactor, or Coroutines in the API layer
-- All fallible operations return `Result<T>` from `ch.welld.soa.automation.common.model` — never throw as control flow
+- All fallible operations return `Result<T>` from `io.stageboard.spellbook.common.model` — never throw as control flow
 - Use `Result.catching { }` at infrastructure boundaries; chain with `map`, `flatMap`, `fold`
 - Domain and DTO types are `data class` with `val` fields — no `var` in domain or service layer
 - No JPA/Hibernate — jOOQ only for all database access

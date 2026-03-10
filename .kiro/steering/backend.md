@@ -20,7 +20,7 @@
 
 ### 1. `Result<T>` is the error-handling contract
 
-Every operation that can fail **must** return `Result<T>` from `ch.welld.soa.automation.common.model`.
+Every operation that can fail **must** return `Result<T>` from `io.stageboard.spellbook.common.model`.
 No service or domain method propagates exceptions as primary control flow.
 
 ```kotlin
@@ -84,7 +84,7 @@ jOOQ Kotlin records are generated **automatically** during the Maven `generate-s
 
 ## Existing Shared Infrastructure
 
-Located in `ch.welld.soa.automation.common.model`:
+Located in `io.stageboard.spellbook.common.model`:
 
 - `Result<T>` — `Success(value)` / `Failure(error)` sealed class with `map`, `flatMap`, `fold`, `catching`, etc.
 - `DomainError` — `DatabaseError` / `ValidationError` / `NotFoundError` / `UnexpectedError` / `StateError`

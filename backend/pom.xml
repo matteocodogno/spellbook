@@ -11,7 +11,7 @@
     <relativePath/>
   </parent>
 
-  <groupId>ch.welld.soa</groupId>
+  <groupId>io.stageboard.spellbook</groupId>
   <artifactId>stageboard-backend</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <name>stageboard-backend</name>
@@ -226,7 +226,7 @@
               <daos>false</daos>
             </generate>
             <target>
-              <packageName>ch.welld.soa.automation.generated</packageName>
+              <packageName>io.stageboard.spellbook.generated</packageName>
               <directory>target/generated-sources/jooq</directory>
             </target>
           </generator>
