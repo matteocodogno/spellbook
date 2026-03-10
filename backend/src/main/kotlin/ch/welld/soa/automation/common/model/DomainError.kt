@@ -17,6 +17,11 @@ package ch.welld.soa.automation.common.model
  * The `toException` method allows for converting a `DomainError` into a corresponding
  * exception class based on the specific error type.
  */
+/**
+ * A single field-level validation failure, carried by [DomainError.ValidationError].
+ */
+data class FieldError(val field: String, val message: String)
+
 sealed class DomainError {
     abstract val message: String
     abstract val cause: Throwable?
@@ -26,8 +31,15 @@ sealed class DomainError {
         override val cause: Throwable? = null,
     ) : DomainError()
 
+    /**
+     * @param fields   Field-level validation failures (empty for coarse-grained errors).
+     * @param code     Optional machine-readable discriminator (e.g. "FILE_TOO_LARGE", "UNSUPPORTED_MIME").
+     *                 Controllers use this to map to non-standard 4xx codes (413, 415, 422).
+     */
     data class ValidationError(
         override val message: String,
+        val fields: List<FieldError> = emptyList(),
+        val code: String? = null,
         override val cause: Throwable? = null,
     ) : DomainError()
 
@@ -41,8 +53,13 @@ sealed class DomainError {
         override val cause: Throwable? = null,
     ) : DomainError()
 
+    /**
+     * @param context  Arbitrary key-value pairs included in the 409 response body
+     *                 (e.g. `mapOf("lockedBy" to name, "lockedAt" to iso)`).
+     */
     data class StateError(
         override val message: String,
+        val context: Map<String, Any> = emptyMap(),
         override val cause: Throwable? = null,
     ) : DomainError()
 

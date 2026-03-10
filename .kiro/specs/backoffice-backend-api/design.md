@@ -315,7 +315,7 @@ sequenceDiagram
 **Service Interface (Kotlin extension)**
 
 ```kotlin
-// packages/common/src/main/kotlin/ch/welld/soa/automation/common/ext/ResultExt.kt
+// backend/src/main/kotlin/ch/welld/soa/automation/common/ext/ResultExt.kt
 fun <T> Result<T>.toResponseEntity(
     successStatus: HttpStatus = HttpStatus.OK,
     successBody: (T) -> Any? = { it }
@@ -327,6 +327,7 @@ fun <T> Result<T>.toResponseEntity(
 fun DomainError.toResponseEntity(): ResponseEntity<Any> = when (this) {
     is DomainError.ValidationError -> ResponseEntity.badRequest().body(
         mapOf("error" to message, "code" to "ValidationError", "fields" to fields)
+        // Note: ImportController overrides status to 413/415 using error.code discriminator
     )
     is DomainError.NotFoundError   -> ResponseEntity.status(404).body(
         mapOf("error" to message, "code" to "NotFoundError")
@@ -487,13 +488,13 @@ sealed class LockAcquireResult {
 interface VersionService {
     fun publish(workshopId: UUID, tag: String?, teamId: UUID): Result<WorkshopVersion>
     fun listVersions(workshopId: UUID, teamId: UUID): Result<List<WorkshopVersion>>
-    fun restore(workshopId: UUID, versionId: UUID, teamId: UUID): Result<Workshop>
+    fun restore(workshopId: UUID, versionId: UUID, teamId: UUID, userId: UUID): Result<Workshop>
 }
 ```
 
 - `publish`: validates phases > 0 AND every phase has steps > 0; computes next label (`1.0`, `1.1`, ...); serialises full workshop JSONB snapshot; wraps in `dsl.transaction { }`.
 - Label computation: `SELECT version_label FROM workshop_versions WHERE workshop_id = ? ORDER BY published_at DESC LIMIT 1`; if null → `"1.0"`, else increment minor.
-- `restore`: deep-copies snapshot phases and steps back to draft tables in one transaction; updates `draftModifiedAt`.
+- `restore`: checks active lock — if a non-expired lock exists and is held by a different user, returns `StateError`; otherwise deep-copies snapshot phases and steps back to draft tables in one transaction; updates `draft_modified_at` and `last_editor_id = userId`.
 
 #### MarkdownImportService
 
@@ -746,14 +747,14 @@ CREATE TABLE teams (
 );
 
 CREATE TABLE users (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    team_id         UUID NOT NULL REFERENCES teams(id),
-    email           TEXT NOT NULL UNIQUE,
-    name            TEXT NOT NULL,
-    password_hash   TEXT,
-    oauth_provider  TEXT,
-    oauth_sub       TEXT,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    team_id        UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    email          TEXT NOT NULL UNIQUE,
+    name           TEXT NOT NULL,
+    password_hash  TEXT,
+    oauth_provider TEXT,
+    oauth_sub      TEXT,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE workshops (
@@ -768,27 +769,27 @@ CREATE TABLE workshops (
 CREATE INDEX workshops_team_modified ON workshops(team_id, draft_modified_at DESC);
 
 CREATE TABLE phases (
-    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    workshop_id         UUID NOT NULL REFERENCES workshops(id) ON DELETE CASCADE,
-    title               TEXT NOT NULL,
-    estimated_minutes   INT NOT NULL CHECK (estimated_minutes > 0),
-    position            INT NOT NULL,
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    workshop_id       UUID NOT NULL REFERENCES workshops(id) ON DELETE CASCADE,
+    title             TEXT NOT NULL,
+    estimated_minutes INT NOT NULL CHECK (estimated_minutes > 0),
+    position          INT NOT NULL,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (workshop_id, position)
 );
 CREATE INDEX phases_workshop_position ON phases(workshop_id, position);
 
 CREATE TABLE steps (
-    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    phase_id    UUID NOT NULL REFERENCES phases(id) ON DELETE CASCADE,
-    type        TEXT NOT NULL,
-    position    INT NOT NULL,
-    content     JSONB NOT NULL DEFAULT '{}',
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    phase_id   UUID NOT NULL REFERENCES phases(id) ON DELETE CASCADE,
+    type       TEXT NOT NULL,
+    position   INT NOT NULL,
+    content    JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (phase_id, position)
 );
 CREATE INDEX steps_phase_position ON steps(phase_id, position);
-CREATE INDEX steps_content_type ON steps USING gin(content jsonb_path_ops);
+CREATE INDEX steps_content_gin ON steps USING gin(content jsonb_path_ops);
 
 CREATE TABLE workshop_versions (
     id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -801,11 +802,11 @@ CREATE TABLE workshop_versions (
 CREATE INDEX versions_workshop_published ON workshop_versions(workshop_id, published_at DESC);
 
 CREATE TABLE workshop_locks (
-    workshop_id     UUID PRIMARY KEY REFERENCES workshops(id) ON DELETE CASCADE,
-    locked_by       UUID NOT NULL REFERENCES users(id),
-    locked_by_name  TEXT NOT NULL,
-    locked_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    expires_at      TIMESTAMPTZ NOT NULL
+    workshop_id    UUID PRIMARY KEY REFERENCES workshops(id) ON DELETE CASCADE,
+    locked_by      UUID NOT NULL REFERENCES users(id),
+    locked_by_name TEXT NOT NULL,
+    locked_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at     TIMESTAMPTZ NOT NULL
 );
 ```
 
@@ -1147,7 +1148,7 @@ size limit exceptions) and converts them to the same JSON error envelope.
 - Lock expiry during a write operation: the write succeeds (lock is checked only on acquire/heartbeat, not on every PATCH); the next acquire by another user supersedes the expired lock.
 - Two users simultaneously call `POST /lock` on the same workshop after expiry: jOOQ `INSERT ... ON CONFLICT DO UPDATE` (UPSERT) ensures only one wins; the other gets 409 on the subsequent read.
 - Version label gap: if `workshop_versions` rows are manually deleted, label sequence could skip; `computeNextLabel` always reads the MAX from DB, so gaps in history are silently skipped.
-- `restore` during active lock: restore does not check the lock; the lock holder is expected to perform the restore; cross-user restore is blocked by team + lock check at the service layer (StateError if not lock holder).
+- `restore` during active lock: `VersionService.restore()` checks for a non-expired lock held by a different user and returns `StateError` (409) if one exists. The calling user's `userId` is passed explicitly so the service can verify lock ownership without relying on a side channel.
 
 ### Integration Failure Modes
 
