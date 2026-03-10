@@ -63,7 +63,6 @@ graph TB
         LockCtrl[LockController]
         VersionCtrl[VersionController]
         ImportCtrl[ImportController]
-        ControllerAdvice[GlobalControllerAdvice]
     end
 
     subgraph Service[Service Layer]
@@ -114,7 +113,8 @@ graph TB
     Security --> Google
     Security --> GitHub
     Security --> XTwitter
-    ControllerAdvice --> API
+    ResultExt[Result.toResponseEntity\(\)]
+    ResultExt --> API
 ```
 
 **Architecture Integration**:
@@ -246,7 +246,7 @@ sequenceDiagram
 | 7.1–7.8     | Workshop Versioning and Publishing   | VersionController, VersionService, VersionRepository | POST /publish, GET /versions, POST /restore   | Publish flow        |
 | 8.1–8.8     | Pessimistic Locking                  | LockController, LockService, LockRepository      | POST/PUT/DELETE /lock                             | Lock lifecycle      |
 | 9.1–9.9     | Markdown Import                      | ImportController, MarkdownImportService, AssetService | POST /import/markdown, POST /import/markdown/confirm | Import flow   |
-| 10.1–10.7   | Error Handling and Result Contract   | GlobalControllerAdvice, `Result.toResponseEntity()` | All endpoints                                 | All                 |
+| 10.1–10.7   | Error Handling and Result Contract   | `Result.toResponseEntity()`, `DomainError` subtypes | All endpoints (no `@ControllerAdvice`)        | All                 |
 | 11.1–11.7   | Data Persistence and Integrity       | All repositories, Liquibase migrations           | DSLContext, JSONB, UUID PKs                       | All                 |
 
 ---
@@ -264,7 +264,7 @@ sequenceDiagram
 | LockController           | API         | Acquire / heartbeat / release lock                              | 8.1–8.8       | LockService                   |
 | VersionController        | API         | Publish, list, restore endpoints                                | 7.1–7.8       | VersionService                |
 | ImportController         | API         | Markdown import preview + confirm                               | 9.1–9.9       | MarkdownImportService         |
-| GlobalControllerAdvice   | API         | Convert `Result.Failure` → `ResponseEntity`; DomainError→HTTP  | 10.1–10.7     | DomainError                   |
+| `Result.toResponseEntity()` | common/ext | Convert `Result<T>` → `ResponseEntity`; `DomainError` → HTTP status + body | 10.1–10.7 | DomainError              |
 | AuthService              | Service     | OAuth user upsert, email/password verification, JWT issuance    | 1.1–1.9       | UserRepository, JwtEncoder    |
 | WorkshopService          | Service     | Business logic: team scoping, CRUD, cascade delete              | 2.1–2.5, 3.1–3.8 | WorkshopRepository         |
 | PhaseService             | Service     | Phase lifecycle + gapless position management                   | 4.1–4.6       | PhaseRepository               |
@@ -287,20 +287,21 @@ sequenceDiagram
 
 ### API Layer
 
-#### GlobalControllerAdvice
+#### Result → ResponseEntity Conversion (`common/ext`)
 
-| Field        | Detail                                                                                |
-|--------------|---------------------------------------------------------------------------------------|
-| Intent       | Single `@ControllerAdvice` that converts `Result.Failure` → `ResponseEntity`          |
-| Requirements | 10.1–10.7                                                                             |
+| Field        | Detail                                                                                  |
+|--------------|-----------------------------------------------------------------------------------------|
+| Intent       | Extension functions that convert `Result<T>` to `ResponseEntity` without a central advice bean |
+| Requirements | 10.1–10.7                                                                               |
 
 **Responsibilities & Constraints**
 
-- Maps each `DomainError` subtype to the correct HTTP status code (see table below).
-- For `ValidationError`: includes `fields` array in the response body.
-- For `StateError` (lock conflict): includes contextual `lockedBy`/`lockedAt` fields.
-- For `DatabaseError` / `UnexpectedError`: logs full stack trace; response body contains no internal details.
-- No controller handles exceptions manually; all `Result.Failure` values are converted via this advice.
+- Every service and repository catches infrastructure exceptions via `Result.catching { }` and maps them to `DomainError` subtypes — no exception ever propagates past the service layer.
+- There is **no `@ControllerAdvice`**. Controllers receive a `Result<T>` from the service and call `result.toResponseEntity(successStatus)` — that is the only conversion path.
+- `DomainError.toResponseEntity()` maps each subtype to the correct HTTP status and body.
+- For `ValidationError`: includes `fields` array; `code` discriminator lets controllers remap to 413/415/422 before calling `toResponseEntity()`.
+- For `StateError` (lock conflict): includes `context` map in the response body.
+- For `DatabaseError` / `UnexpectedError`: logs full stack trace via SLF4J at `ERROR`; response body contains no internal details.
 
 **DomainError → HTTP Mapping**
 
@@ -876,9 +877,9 @@ All API responses use camelCase JSON. The shapes below match exactly what the fr
 
 ### Error Strategy
 
-Every service and repository method returns `Result<T>`. Controllers call `result.toResponseEntity(successStatus)`.
-The `GlobalControllerAdvice` intercepts uncaught framework exceptions (Spring MVC binding errors, `MethodArgumentNotValidException`,
-size limit exceptions) and converts them to the same JSON error envelope.
+Every service and repository method returns `Result<T>`. All exceptions are caught at infrastructure boundaries using `Result.catching { }` and converted to `DomainError` subtypes — no exception propagates past the service layer to the controller. There is no `@ControllerAdvice`.
+
+Controllers call `result.toResponseEntity(successStatus)` to produce the `ResponseEntity`. For import endpoints, the controller inspects `ValidationError.code` to decide whether to emit 413 or 415 before delegating to `DomainError.toResponseEntity()`.
 
 ### Error Categories and Responses
 

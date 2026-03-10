@@ -70,10 +70,15 @@ Controller  →  Service  →  Repository  →  Database
   DTO            Domain
 ```
 
-- Controllers convert `Result<T>` to `ResponseEntity` via a shared `Result.toResponseEntity()` extension.
+- Controllers convert `Result<T>` to `ResponseEntity` via a shared `Result.toResponseEntity()` extension. There is **no `@ControllerAdvice`**.
+- All exceptions are caught inside services and repositories using `Result.catching { }` — no exception propagates past the service layer.
 - Services own business logic; they never reference Spring MVC types.
 - Repositories return `Result<T>`; they never throw.
 - Domain types never reference Spring or JPA annotations.
+
+### 6. jOOQ Code Generation
+
+jOOQ Kotlin records are generated **automatically** during the Maven `generate-sources` lifecycle phase via `jooq-codegen-maven`. No manual codegen step is needed — every `mvn compile` or `mvn package` regenerates records from the Liquibase changelogs. Run `mise run backend:codegen` only when you need to inspect the generated code without a full build.
 
 ---
 

@@ -1,9 +1,9 @@
 {
   "feature_name": "backoffice-backend-api",
   "created_at": "2026-03-10T00:00:00.000Z",
-  "updated_at": "2026-03-10T01:00:00.000Z",
+  "updated_at": "2026-03-10T02:00:00.000Z",
   "language": "en",
-  "phase": "design-generated",
+  "phase": "tasks-generated",
   "approvals": {
     "requirements": {
       "generated": true,
@@ -14,7 +14,7 @@
       "approved": true
     },
     "tasks": {
-      "generated": false,
+      "generated": true,
       "approved": false
     }
   },
