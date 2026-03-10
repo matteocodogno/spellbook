@@ -4,10 +4,12 @@
 
 | Layer | Choice | Notes |
 |-------|--------|-------|
-| Language | Kotlin (JVM) | Functional idioms preferred |
-| Framework | Spring Boot 3.x | Web MVC or WebFlux (TBD per spec) |
-| Database | PostgreSQL | JPA/Hibernate or jOOQ (TBD per spec) |
-| Auth | Spring Security + OAuth2 Resource Server | Google, X/Twitter, GitHub, email+password |
+| Language | Kotlin (JVM) | Functional idioms; no Java source files |
+| Framework | Spring Boot 3.x — **Spring MVC** (blocking) | No WebFlux / Reactor / Coroutines in API layer |
+| Database access | **jOOQ** | Type-safe SQL DSL; direct JSONB support; no JPA/Hibernate |
+| Database | PostgreSQL | Primary store for all workshop content |
+| Asset store | **MinIO** (S3-compatible) via AWS S3 SDK | Imported image assets; env-configured bucket + endpoint |
+| Auth | Spring Security + OAuth2 / email+password | Google, X/Twitter, GitHub; httpOnly JWT cookie |
 | Build | Gradle (Kotlin DSL) | |
 
 ---
