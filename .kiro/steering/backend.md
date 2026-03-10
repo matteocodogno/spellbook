@@ -2,15 +2,17 @@
 
 ## Stack
 
-| Layer | Choice | Notes |
-|-------|--------|-------|
-| Language | Kotlin (JVM) | Functional idioms; no Java source files |
-| Framework | Spring Boot 3.x — **Spring MVC** (blocking) | No WebFlux / Reactor / Coroutines in API layer |
-| Database access | **jOOQ** | Type-safe SQL DSL; direct JSONB support; no JPA/Hibernate |
-| Database | PostgreSQL | Primary store for all workshop content |
-| Asset store | **MinIO** (S3-compatible) via AWS S3 SDK | Imported image assets; env-configured bucket + endpoint |
-| Auth | Spring Security + OAuth2 / email+password | Google, X/Twitter, GitHub; httpOnly JWT cookie |
-| Build | Gradle (Kotlin DSL) | |
+| Layer | Choice                                      | Notes |
+|-------|---------------------------------------------|-------|
+| Language | Kotlin 2.3.x (JVM 21)                       | Functional idioms; no Java source files |
+| Framework | Spring Boot 4.0.x — **Spring MVC** (blocking) | No WebFlux / Reactor / Coroutines in API layer |
+| Database access | **jOOQ 3.20.x** (`jooq` + `jooq-kotlin`)   | Type-safe SQL DSL + Kotlin extensions; direct JSONB support; no JPA/Hibernate |
+| jOOQ codegen | `jooq-codegen-maven` plugin + `jooq-meta-extensions-liquibase` | Generates Kotlin record classes from Liquibase changelogs at `generate-sources`; no live DB needed |
+| Database | PostgreSQL 16                               | Primary store for all workshop content |
+| Asset store | **MinIO** (S3-compatible) via AWS S3 SDK v2 2.42.x | Imported image assets; env-configured bucket + endpoint |
+| Auth | Spring Security 7 + OAuth2 / email+password | Google, X/Twitter, GitHub; httpOnly JWT cookie |
+| Schema migrations | **Liquibase 5.x** (`liquibase-spring-boot-starter`) | SQL format changelogs (`db/changelog/changes/*.sql`); auto-applied at startup |
+| Build | Maven + `kotlin-maven-plugin` + `spring-boot-maven-plugin` | `jooq-codegen-maven` bound to `generate-sources`; `mvn spring-boot:run` for local dev |
 
 ---
 

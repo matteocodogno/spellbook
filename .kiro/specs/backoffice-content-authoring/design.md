@@ -2,16 +2,19 @@
 
 ## Overview
 
-The Backoffice Content Authoring feature delivers a dedicated single-page admin application that enables Content
-Authors (who are also Trainers) to create, organise, version, and publish workshop content for the Stageboard platform.
+The Backoffice Content Authoring feature is one of the two route trees inside the unified **Stageboard** frontend
+application. Content Authors (who are also Trainers) use the `/backoffice` route tree to create, organise, version, and
+publish workshop content. The `/frontoffice` route tree (a separate spec) delivers the same content to Trainers and
+Participants at runtime.
 
-The backoffice is architecturally separate from the Spellbook delivery SPA: it is a distinct Vite application with its
-own routing, authentication layer, and server-state management, living alongside Spellbook in a pnpm workspace monorepo.
-Content authored here is persisted to a backend REST API and PostgreSQL database; it is consumed at runtime by the
-Trainer and Participant delivery views.
+The Stageboard frontend is a single Vite application with TanStack Router. Both route trees live in one build; the
+`/backoffice` tree is auth-gated (httpOnly JWT cookie), while `/frontoffice` is publicly accessible. This replaces the
+previous two-app model (`apps/backoffice` + `apps/spellbook`). Content is persisted via the backend REST API to
+PostgreSQL.
 
-The application covers eight requirement areas: workshop CRUD, phase management, step management with five typed forms,
-workshop versioning and publishing, pessimistic team locking, Markdown file import, and an outline navigation sidebar.
+The `/backoffice` route tree covers eight requirement areas: workshop CRUD, phase management, step management with five
+typed forms, workshop versioning and publishing, pessimistic team locking, Markdown file import, and an outline
+navigation sidebar.
 
 ### Goals
 
@@ -19,12 +22,13 @@ workshop versioning and publishing, pessimistic team locking, Markdown file impo
 - Enforce a draft/publish content lifecycle so live sessions always consume stable, versioned content.
 - Prevent data loss via 30-second auto-save and pessimistic workshop-level locking.
 - Support Markdown file import with editable mapping preview.
+- Share domain types with the `/frontoffice` route tree via `src/data/` within the same app.
 
 ### Non-Goals
 
 - Notion import (PRD Phase 3 — no stubs or UI in this spec).
 - Real-time collaborative editing (concurrent access is blocked via pessimistic lock).
-- Participant or Trainer delivery views (separate specs).
+- Frontoffice (Trainer/Participant delivery views) — covered by the `/frontoffice` route tree spec.
 - Backend API implementation (REST contracts are defined here as the interface; implementation is a separate backend
   spec).
 - Mobile responsive layout (desktop browser only per NFR U-02).
@@ -35,97 +39,129 @@ workshop versioning and publishing, pessimistic team locking, Markdown file impo
 
 ### Existing Architecture Analysis
 
-The current Spellbook SPA is intentionally constrained: no router, no backend, no auth, all content in static TypeScript
-data files (`src/data/phases.ts`). `WorkflowContext` and `NotesContext` provide the two state domains; all persistence
-is via `localStorage`. The `Phase` and `Step` types in `src/data/phases.ts` are the current domain model baseline.
-
-The backoffice cannot be embedded in Spellbook without adding a router and an auth layer, both explicitly prohibited by
-`CLAUDE.md`. The correct boundary is a separate application.
+The legacy Spellbook SPA is a constraint-heavy static app (no router, no backend, no auth, static data files). Rather
+than extending it, the Stageboard frontend supersedes it as a single unified app. The existing `Phase`/`Step` domain
+types from `src/data/phases.ts` serve as the baseline; they are migrated and extended within `src/data/` of the new app.
+The old `WorkflowContext` and `NotesContext` are reused for the `/frontoffice` route tree, eliminating the need for two
+separate builds.
 
 ### Architecture Pattern & Boundary Map
 
-The backoffice follows a **Layered SPA** pattern: Presentation → Service (React Query hooks) → API Client → REST
-backend.
+The Stageboard frontend follows a **Layered SPA** pattern with route-tree isolation: Presentation → Service (TanStack
+Query hooks) → API Client → REST backend. A single TanStack Router instance defines two top-level route trees —
+`/backoffice` (auth-gated) and `/frontoffice` (public).
+
+**Monorepo Directory Layout**
+
+```
+stageboard/
+├── backend/                        # Spring Boot / Kotlin API
+│   ├── src/
+│   └── build.gradle.kts
+├── frontend/                       # Single Vite + React app
+│   ├── src/
+│   │   ├── routes/
+│   │   │   ├── __root.tsx          # Root layout (QueryClientProvider, RouterDevtools)
+│   │   │   ├── backoffice/
+│   │   │   │   ├── _auth.tsx       # Auth guard layout route (redirects to /backoffice/login)
+│   │   │   │   ├── login.tsx
+│   │   │   │   ├── workshops/
+│   │   │   │   │   ├── index.tsx   # Workshop list
+│   │   │   │   │   └── $id/
+│   │   │   │   │       ├── edit.tsx
+│   │   │   │   │       └── versions.tsx
+│   │   │   │   └── import.tsx
+│   │   │   └── frontoffice/
+│   │   │       ├── index.tsx       # Delivery landing / workshop picker
+│   │   │       └── $sessionCode/
+│   │   │           ├── trainer.tsx
+│   │   │           └── participant.tsx
+│   │   ├── components/             # Shared + route-scoped UI components
+│   │   ├── hooks/                  # Reusable stateful logic
+│   │   ├── services/               # TanStack Query hooks + typed API client
+│   │   ├── data/                   # Domain types (Phase, Step, Workshop, etc.)
+│   │   ├── contexts/               # WorkflowContext, NotesContext (frontoffice)
+│   │   └── main.tsx
+│   ├── index.html
+│   ├── vite.config.ts
+│   └── package.json
+├── pnpm-workspace.yaml
+├── package.json                    # Workspace root (scripts, shared dev deps)
+└── .mise.toml
+```
+
+**Architecture Boundary Map**
 
 ```mermaid
 graph TB
     subgraph Monorepo
-        subgraph BackofficeSPA [apps/backoffice]
-            LoginPage[Login Page]
-            WorkshopListPage[Workshop List Page]
-            WorkshopEditorPage[Workshop Editor Page]
-            VersionPage[Version History Page]
-            OutlineSidebar[Outline Sidebar]
-            EditorPane[Editor Pane]
-            DraftState[Local Draft State]
+        subgraph Frontend [frontend/]
+            subgraph Router [TanStack Router]
+                BackofficeTree[/backoffice/* route tree\nauth-gated via _auth layout route]
+                FrontofficeTree[/frontoffice/* route tree\npublic]
+            end
             QueryCache[TanStack Query Cache]
-            RestClient[REST API Client]
+            RestClient[REST API Client\ncredentials: include]
+            DomainTypes[src/data/ — shared domain types]
         end
-        subgraph SpellbookSPA [apps/spellbook]
-            DeliveryApp[Existing Delivery SPA]
-        end
-        subgraph SharedPkg [packages/shared-types]
-            DomainTypes[Workshop Phase Step Types]
+        subgraph Backend [backend/]
+            SpringAPI[Spring Boot MVC API]
         end
     end
-    subgraph BackendREST [Backend REST API]
-        AuthAPI[Auth Endpoints]
-        WorkshopsAPI[Workshops API]
-        PhasesAPI[Phases API]
-        StepsAPI[Steps API]
-        VersionsAPI[Versions API]
-        LocksAPI[Locks API]
-        ImportAPI[Import API]
-        AssetStore[Asset Store]
+    subgraph BackendREST [REST Endpoints]
+        AuthAPI[/api/auth/*]
+        WorkshopsAPI[/api/workshops/*]
+        PhasesAPI[/api/phases/*]
+        StepsAPI[/api/steps/*]
+        VersionsAPI[/api/versions/*]
+        LocksAPI[/api/locks/*]
+        ImportAPI[/api/import/*]
     end
-    subgraph OAuthProviders [OAuth Providers]
+    subgraph OAuthProviders
         Google[Google]
         GitHub[GitHub]
-        XProvider[X Twitter]
+        XProvider[X / Twitter]
     end
-    WorkshopEditorPage --> OutlineSidebar
-    WorkshopEditorPage --> EditorPane
-    EditorPane --> DraftState
-    DraftState --> QueryCache
+
+    BackofficeTree --> QueryCache
+    FrontofficeTree --> QueryCache
     QueryCache --> RestClient
     RestClient --> BackendREST
+    BackendREST --> SpringAPI
     AuthAPI --> Google
     AuthAPI --> GitHub
     AuthAPI --> XProvider
-    DomainTypes --> BackofficeSPA
-    DomainTypes --> SpellbookSPA
+    DomainTypes --> BackofficeTree
+    DomainTypes --> FrontofficeTree
 ```
 
 **Architecture Integration**:
 
-- Selected pattern: Layered SPA — separation between presentation, query/mutation layer, and REST client keeps
-  components testable and boundary-clear.
-- Domain boundaries: auth, workshop, phase, step, version, lock, and import are separate service modules within the
-  query layer; no cross-cutting state.
-- Existing patterns preserved: Tailwind utility classes, JetBrains Mono aesthetic, Vite + TypeScript strict mode, pnpm
-  toolchain.
-- New components rationale: TanStack Router provides type-safe routing without touching Spellbook; TanStack Query
-  handles server state lifecycle; `@dnd-kit` provides accessible drag-and-drop; `@uiw/react-codemirror` powers the
-  Markdown editor.
-- Steering compliance: Tailwind v4 only, no CSS-in-JS, no inline `style={{}}` except for dynamic phase colours,
-  functional components, TypeScript strict mode.
+- Selected pattern: Layered SPA with TanStack Router route trees — `/backoffice` and `/frontoffice` are co-located in
+  one build, code-split at the route level via lazy imports, sharing the QueryClient and domain types.
+- Auth boundary: TanStack Router `_auth` layout route (`beforeLoad` hook) guards all `/backoffice` routes; unauthenticated
+  requests redirect to `/backoffice/login`. `/frontoffice` has no auth requirement.
+- Domain types: `src/data/` holds `Workshop`, `Phase`, `Step` interfaces consumed by both route trees; no separate
+  package needed.
+- Existing patterns preserved: Tailwind v4 utility classes, JetBrains Mono aesthetic, TypeScript strict mode.
+- Steering compliance: Tailwind v4 only, no CSS-in-JS, functional components, TypeScript strict mode.
 
 ### Technology Stack
 
-| Layer              | Choice / Version                                        | Role in Feature                                       | Notes                                               |
-|--------------------|---------------------------------------------------------|-------------------------------------------------------|-----------------------------------------------------|
-| Frontend framework | React 19 + TypeScript 5.9                               | UI components and hooks                               | Matches Spellbook stack                             |
-| Bundler            | Vite 7 + @vitejs/plugin-react                           | Dev server, production build                          | Separate `apps/backoffice` entry                    |
-| Styling            | Tailwind CSS v4 via @tailwindcss/vite                   | Utility-class UI                                      | No config file; colours via `@theme` in `index.css` |
-| Routing            | TanStack Router v1                                      | Type-safe SPA routing (login, list, editor, versions) | No React Router; type-safe route params             |
-| Server state       | TanStack Query v5                                       | Fetch, cache, mutate, auto-save                       | `QueryClientProvider` at app root                   |
-| Drag-and-drop      | @dnd-kit/core v6 + @dnd-kit/sortable v8                 | Phase + step reorder; cross-list drag                 | Accessible, headless, Vite-compatible               |
-| Markdown editor    | @uiw/react-codemirror v4 + @codemirror/lang-markdown    | Syntax-highlighted Markdown editing pane              | CodeMirror 6 under the hood                         |
-| Markdown preview   | react-markdown v9 + remark-gfm v4 + rehype-highlight v7 | Live preview rendering                                | Same plugins as delivery view                       |
-| Auth               | httpOnly cookie JWT (backend-issued)                    | Cookie-based session; no client OAuth library needed  | `credentials: "include"` on all fetch calls         |
-| HTTP client        | Native `fetch` (typed wrapper)                          | REST API calls                                        | No Axios; typed `apiClient` module                  |
-| Shared types       | `packages/shared-types` (pnpm workspace)                | Workshop, Phase, Step TypeScript interfaces           | Shared with Spellbook delivery app                  |
-| Infrastructure     | mise + pnpm workspaces                                  | Toolchain consistency                                 | Mirrors existing Spellbook setup                    |
+| Layer              | Choice / Version                                        | Role in Feature                                            | Notes                                               |
+|--------------------|---------------------------------------------------------|------------------------------------------------------------|-----------------------------------------------------|
+| Frontend framework | React 19 + TypeScript 5.9                               | UI components and hooks for both route trees               | Single app; no class components                     |
+| Bundler            | Vite 7 + @vitejs/plugin-react                           | Dev server, production build for unified `frontend/` app   | One entry point; route-level code splitting         |
+| Styling            | Tailwind CSS v4 via @tailwindcss/vite                   | Utility-class UI across all routes                         | No config file; colours via `@theme` in `index.css` |
+| Routing            | TanStack Router v1                                      | `/backoffice/*` (auth-gated) + `/frontoffice/*` (public)   | File-based routes in `src/routes/`; type-safe params |
+| Server state       | TanStack Query v5                                       | Fetch, cache, mutate, auto-save                            | `QueryClientProvider` at `__root.tsx`               |
+| Drag-and-drop      | @dnd-kit/core v6 + @dnd-kit/sortable v8                 | Phase + step reorder; cross-list drag                      | Backoffice route tree only                          |
+| Markdown editor    | @uiw/react-codemirror v4 + @codemirror/lang-markdown    | Syntax-highlighted Markdown editing pane                   | CodeMirror 6; backoffice route tree only            |
+| Markdown preview   | react-markdown v9 + remark-gfm v4 + rehype-highlight v7 | Live preview (backoffice) + step content rendering (frontoffice) | Shared component                              |
+| Auth               | httpOnly cookie JWT (backend-issued)                    | Cookie-based session; guards `/backoffice/*` route tree    | `credentials: "include"` on all fetch calls         |
+| HTTP client        | Native `fetch` (typed wrapper)                          | REST API calls from both route trees                       | No Axios; typed `apiClient` module in `src/services/` |
+| Domain types       | `src/data/` in `frontend/`                              | `Workshop`, `Phase`, `Step` interfaces shared across trees | No separate workspace package needed                |
+| Infrastructure     | mise + pnpm workspaces                                  | Toolchain consistency; `backend/` + `frontend/` workspaces | Single `pnpm-workspace.yaml` at monorepo root       |
 
 ---
 

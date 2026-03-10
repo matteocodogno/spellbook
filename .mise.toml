@@ -1,18 +1,57 @@
 [tools]
+# Frontend
 node = "22"
 pnpm = "latest"
 
+# Backend
+java = "temurin-21"
+maven = "latest"
+
+# ── Frontend tasks ────────────────────────────────────────────────────────────
+
 [tasks.dev]
 run = "pnpm dev"
+dir = "frontend"
 
 [tasks.build]
 run = "pnpm build"
+dir = "frontend"
 
 [tasks.preview]
 run = "pnpm preview"
+dir = "frontend"
 
 [tasks.typecheck]
 run = "pnpm typecheck"
+dir = "frontend"
 
 [tasks.lint]
 run = "pnpm lint"
+dir = "frontend"
+
+# ── Backend tasks ─────────────────────────────────────────────────────────────
+
+[tasks."backend:run"]
+description = "Start the Spring Boot dev server on :8080"
+run = "mvn spring-boot:run"
+dir = "backend"
+
+[tasks."backend:build"]
+description = "Compile and package the backend JAR"
+run = "mvn package -DskipTests"
+dir = "backend"
+
+[tasks."backend:test"]
+description = "Run all backend tests"
+run = "mvn test"
+dir = "backend"
+
+[tasks."backend:codegen"]
+description = "Regenerate jOOQ Kotlin records from Liquibase changelogs"
+run = "mvn generate-sources"
+dir = "backend"
+
+[tasks."backend:verify"]
+description = "Full backend verify lifecycle (compile + test + package)"
+run = "mvn verify"
+dir = "backend"

@@ -1,66 +1,171 @@
 # Project Structure
 
-## Organization Philosophy
+## Monorepo Layout
 
-Feature-thin, concern-layered. Code is split by what it is (component, hook, data, context, util), not by feature. Works well because the app has a single view with a shared data model.
-
-## Directory Patterns
-
-### Components (`src/components/`)
-**Purpose**: React UI components — one component per file, no business logic
-**Naming**: PascalCase (`PhaseCard.tsx`, `CodeBlock.tsx`)
-**Rule**: Props interface defined inline above the component; no default exports (except page-level and `App.tsx`)
-
-### Data (`src/data/`)
-**Purpose**: All content and configuration — phases, steps, palette, prerequisites, comm-flow diagrams
-**Rule**: Data lives here, never inlined in components. Shared TypeScript interfaces co-located with the data they describe (e.g. `Phase`, `Step` types in `phases.ts`)
-
-### Hooks (`src/hooks/`)
-**Purpose**: Reusable stateful logic extracted from components
-**Examples**: `useWorkflow.tsx` (step/phase state machine), `usePhaseTimers.ts` (elapsed time), `useKeyboardShortcuts.ts`, `useNotes.tsx`
-
-### Contexts (`src/contexts/`)
-**Purpose**: React context providers for cross-component state
-**Examples**: `WorkflowContext.tsx` (active phase, completed steps, focused step), `NotesContext.tsx` (per-step notes)
-
-### Utils (`src/utils/`)
-**Purpose**: Pure utility functions with no React dependency
-**Example**: `copyText.ts` (clipboard helper)
-
-## Naming Conventions
-
-- **Files**: PascalCase for components (`PhaseCard.tsx`), camelCase for hooks/utils/data (`useScrolled.ts`, `palette.ts`)
-- **Components**: Named exports preferred; default export only for `App.tsx` and page-level components
-- **Hooks**: Prefix `use` (`useWorkflow`, `useConfetti`)
-- **Contexts**: Suffix `Context` (`WorkflowContext`, `NotesContext`)
-
-## Import Organization
-
-```typescript
-// React and third-party first
-import { useState } from "react";
-
-// Internal data
-import { phases } from "./data/phases";
-
-// Hooks
-import { useWorkflow } from "./hooks/useWorkflow";
-
-// Contexts
-import { WorkflowProvider } from "./contexts/WorkflowContext";
-
-// Components (alphabetical within group)
-import { Header } from "./components/Header";
-import { PhaseList } from "./components/PhaseList";
+```
+stageboard/
+├── backend/                        # Spring Boot / Kotlin REST API (Maven)
+│   ├── src/
+│   │   ├── main/kotlin/ch/welld/soa/automation/
+│   │   │   ├── auth/               # AuthController, AuthService
+│   │   │   ├── workshop/           # WorkshopController, WorkshopService, WorkshopRepository
+│   │   │   ├── phase/
+│   │   │   ├── step/
+│   │   │   ├── lock/
+│   │   │   ├── version/
+│   │   │   ├── import/
+│   │   │   └── common/             # Result<T>, DomainError, extensions
+│   │   └── main/resources/
+│   │       └── db/changelog/       # Liquibase SQL changelogs
+│   ├── target/generated-sources/jooq/  # jOOQ Kotlin records (generated; not committed)
+│   └── pom.xml
+├── frontend/                       # Single React + Vite app
+│   ├── src/
+│   │   ├── routes/                 # TanStack Router file-based routes
+│   │   │   ├── __root.tsx          # Root layout — QueryClientProvider, router devtools
+│   │   │   ├── backoffice/
+│   │   │   │   ├── _auth.tsx       # Auth guard layout route (beforeLoad → redirect to login)
+│   │   │   │   ├── login.tsx
+│   │   │   │   ├── workshops/
+│   │   │   │   │   ├── index.tsx
+│   │   │   │   │   └── $id/
+│   │   │   │   │       ├── edit.tsx
+│   │   │   │   │       └── versions.tsx
+│   │   │   │   └── import.tsx
+│   │   │   └── frontoffice/
+│   │   │       ├── index.tsx       # Workshop picker / delivery landing
+│   │   │       └── $sessionCode/
+│   │   │           ├── trainer.tsx
+│   │   │           └── participant.tsx
+│   │   ├── components/             # Shared UI components (used by both trees)
+│   │   │   ├── backoffice/         # Backoffice-only components
+│   │   │   └── frontoffice/        # Frontoffice-only components
+│   │   ├── hooks/                  # Reusable stateful logic
+│   │   ├── services/               # TanStack Query hooks + typed apiClient
+│   │   ├── data/                   # Domain types: Workshop, Phase, Step, etc.
+│   │   ├── contexts/               # WorkflowContext, NotesContext (frontoffice)
+│   │   └── main.tsx
+│   ├── index.html
+│   ├── vite.config.ts
+│   └── package.json
+├── pnpm-workspace.yaml
+├── package.json                    # Workspace root
+└── .mise.toml                      # Toolchain: node, pnpm, java (temurin-21), maven
+                                    # Tasks: mise run dev | build | lint | typecheck | preview
+                                    #        mise run backend:run | build | test | codegen | verify
 ```
 
-No path aliases configured — use relative imports from `src/`.
+---
 
-## Code Organization Principles
+## Frontend Conventions
 
-- Types shared across 3+ components move to `src/data/`; otherwise they stay inline above the component
-- `App.tsx` is the composition root — it wires providers and top-level layout; it should not contain feature logic
-- Phase colour palette is the single source of truth in `src/data/palette.ts` — phase components read from it, never define their own colours
+### Route Tree Isolation
+
+- `/backoffice/*` — auth-gated via `_auth.tsx` layout route (`beforeLoad` hook checks session); all content-authoring UI lives here.
+- `/frontoffice/*` — public; delivery views (Trainer, Participant) live here.
+- Both trees share `QueryClientProvider` (root), domain types (`src/data/`), and the `apiClient` (`src/services/`).
+
+### Organization Philosophy
+
+Feature-thin, concern-layered within each route tree.
+
+### `src/data/`
+- Domain types: `Workshop`, `Phase`, `Step`, `WorkshopVersion`, `StepType` and all related interfaces.
+- Shared between backoffice and frontoffice routes — single source of truth.
+- No business logic; types and static data only.
+
+### `src/services/`
+- `apiClient.ts` — typed `fetch` wrapper; injects `credentials: "include"`; never throws; returns `ApiResult<T>`.
+- Domain service files: `workshopService.ts`, `phaseService.ts`, `stepService.ts`, `lockService.ts`, `versionService.ts`, `importService.ts`.
+- Each service file exports TanStack Query hooks (`useWorkshops`, `useCreateWorkshop`, etc.).
+
+### `src/components/`
+- `PascalCase` filenames; one component per file.
+- Props interface defined inline above the component.
+- Named exports only (no default exports except page-level routes and `App.tsx`).
+- Sub-directories `backoffice/` and `frontoffice/` for route-scoped components; top-level for shared ones.
+
+### `src/hooks/`
+- Prefix `use`; reusable across components.
+- Examples: `useAutoSave.ts`, `useWorkflow.ts`, `usePhaseTimers.ts`, `useKeyboardShortcuts.ts`.
+
+### `src/contexts/`
+- Suffix `Context`; provider components co-located.
+- `WorkflowContext.tsx` and `NotesContext.tsx` are frontoffice-specific.
 
 ---
-_Document patterns, not file trees. New files following patterns shouldn't require updates_
+
+## Backend Conventions
+
+Domain-driven package structure; one package per bounded context.
+
+### Package Layout
+
+```
+ch.welld.soa.automation/
+├── auth/
+│   ├── AuthController.kt
+│   ├── AuthService.kt
+│   └── UserRepository.kt
+├── workshop/
+│   ├── WorkshopController.kt
+│   ├── WorkshopService.kt
+│   └── WorkshopRepository.kt
+├── phase/ ...
+├── step/
+│   ├── StepController.kt
+│   ├── StepService.kt
+│   ├── StepRepository.kt
+│   └── StepContentValidator.kt
+├── lock/ ...
+├── version/ ...
+├── import/
+│   ├── ImportController.kt
+│   ├── MarkdownImportService.kt
+│   └── AssetService.kt
+└── common/
+    └── model/                      # Result<T>, DomainError — do NOT modify
+```
+
+### Naming Conventions
+
+- Controller: `{Domain}Controller.kt`
+- Service: `{Domain}Service.kt`
+- Repository: `{Domain}Repository.kt`
+- DTOs: `{Domain}Request.kt` / `{Domain}Response.kt`
+- Domain models: `{Domain}.kt` (pure `data class`, no Spring annotations)
+
+### Liquibase Changelogs
+
+```
+backend/src/main/resources/db/changelog/
+├── db.changelog-master.xml         # Master changelog (includes all SQL files)
+└── changes/
+    ├── 001-initial-schema.sql
+    ├── 002-add-indexes.sql
+    └── ...
+```
+
+Each SQL changeset file format:
+```sql
+-- liquibase formatted sql
+-- changeset stageboard:<NNN>
+CREATE TABLE ...;
+```
+
+---
+
+## Naming Conventions (shared)
+
+| Artifact | Convention | Example |
+|----------|------------|---------|
+| React component files | PascalCase | `WorkshopEditorPage.tsx` |
+| Hook files | camelCase with `use` prefix | `useAutoSave.ts` |
+| Service files | camelCase | `workshopService.ts` |
+| Kotlin classes | PascalCase | `WorkshopService.kt` |
+| Kotlin functions | camelCase | `createWorkshop()` |
+| DB tables | snake_case | `workshop_versions` |
+| API paths | kebab-case | `/api/workshops/:id/phases/order` |
+
+---
+_Document patterns and structure, not exhaustive file trees. New files following patterns should not require updates._

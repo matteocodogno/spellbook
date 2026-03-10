@@ -23,3 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 .env.cached
+
+# Backend — Maven build output
+backend/target/
+backend/.mvn/
+
+# jOOQ generated sources (regenerated via `mise run backend:codegen`)
+backend/target/generated-sources/jooq/

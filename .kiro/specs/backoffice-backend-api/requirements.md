@@ -337,7 +337,7 @@ integrity and consistent ordering.
 | S-03 | Cookie security | httpOnly, SameSite=Strict, Secure; no token in response body | P0 | Req 1 |
 | S-04 | File upload validation | MIME type validated server-side using content inspection, not filename extension | P0 | Req 9 |
 | S-05 | No sensitive data in 5xx responses | Stack traces logged server-side only; response body contains no internals | P0 | Req 10 |
-| S-06 | CORS | Allowed origins limited to the backoffice SPA origin; `Access-Control-Allow-Credentials: true` | P0 | Req 1 |
+| S-06 | CORS | Allowed origins limited to the unified frontend origin (`FRONTEND_ORIGIN` env var); `Access-Control-Allow-Credentials: true` | P0 | Req 1 |
 
 ### Scalability
 

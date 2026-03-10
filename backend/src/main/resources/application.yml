@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: stageboard-backend
+  datasource:
+    url: jdbc:postgresql://localhost:5432/stageboard
+    username: stageboard
+    password: stageboard
+    driver-class-name: org.postgresql.Driver
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:}
+            client-secret: ${GOOGLE_CLIENT_SECRET:}
+            scope: openid,profile,email
+          github:
+            client-id: ${GITHUB_CLIENT_ID:}
+            client-secret: ${GITHUB_CLIENT_SECRET:}
+            scope: user:email,read:user
+
+server:
+  port: 8080
+
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  bucket: ${MINIO_BUCKET:stageboard}
+  access-key: ${AWS_ACCESS_KEY_ID:minioadmin}
+  secret-key: ${AWS_SECRET_ACCESS_KEY:minioadmin}
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:change-me-in-production-this-must-be-at-least-256-bits}
+    expiration-ms: 86400000
+  cors:
+    allowed-origin: ${BACKOFFICE_ORIGIN:http://localhost:5173}
+  oauth:
+    callback-base-url: ${OAUTH_CALLBACK_BASE_URL:http://localhost:8080}
