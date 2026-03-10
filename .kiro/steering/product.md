@@ -1,31 +1,37 @@
 # Product Overview
 
-Spellbook is an interactive course companion for AI4Dev workshops — a static single-page app that guides trainers and participants through a structured, phase-based learning experience.
+**Stageboard** is a real-time, multi-user workshop delivery platform for AI4Dev — a monorepo with a Spring Boot/Kotlin backend and a React/Vite frontend. It replaces the static Spellbook companion with full backoffice authoring, live session delivery, and team-scoped content management.
 
 ## Core Capabilities
 
-- **Phase-based navigation**: Workshop content organized into numbered phases, each with ordered steps that the trainer walks through live
-- **Step interaction**: Each step has a tool, action, code block, timing, and optional troubleshooting tips; participants can mark steps complete
-- **Presenter mode**: Spotlight overlay and presenter-specific controls for on-screen delivery
-- **Progress tracking**: Sticky progress bar, phase completion celebrations, per-phase elapsed timers
-- **Keyboard-first UX**: Full keyboard shortcut system (`?` to open, arrow navigation, spotlight, copy code)
-- **Notes**: Per-step collapsible notes persisted in localStorage; no server required
+### Backoffice (Content Authoring)
+- **Workshop management**: Create, edit, publish, and version workshops scoped to a team
+- **Phase and step editing**: Drag-and-drop ordering, Markdown content editor, JSONB-backed step content
+- **Import**: Parse Markdown files into workshop structure; upload assets to MinIO
+- **Versioning**: Snapshot published workshops; restore from version history
+- **Locking**: Pessimistic edit lock per workshop (TTL-based, lazy evaluation)
+
+### Frontoffice (Workshop Delivery)
+- **Trainer view**: Navigate phases/steps live; broadcast current position to participants
+- **Participant view**: Follow trainer navigation in real time; mark steps complete; take notes
+- **Progress tracking**: Per-phase elapsed timers, progress bar, completion celebrations
+- **Keyboard-first UX**: Full shortcut system; spotlight overlay for presenter mode
 
 ## Target Use Cases
 
-- A trainer running a live AI4Dev workshop on their screen while participants follow along
-- Participants tracking their own progress through exercises and noting insights
-- Self-paced learners following a workshop recording with the companion app open
+- A trainer running a live AI4Dev workshop; participants follow the same step in real time
+- A content author building and iterating on workshop material in the backoffice
+- Self-paced learners navigating a published workshop without a live trainer
 
 ## Value Proposition
 
-Single focused URL replaces juggling between Notion, slides, and a timer. Monospace aesthetic, colour-coded phases, and copyable code blocks optimized for developer workshops.
+One platform replaces Notion (content), slides (delivery), and a timer. Monospace aesthetic, colour-coded phases, and team-scoped authoring optimized for developer workshop delivery.
 
 ---
 
-## Roadmap Context
+## Architecture Context
 
-The longer-term vision (see `prd.md`) is **Stageboard** — a real-time, multi-user workshop delivery platform where trainer navigation broadcasts live to participants. Spellbook is the current static companion; Stageboard adds WebSocket sync, backoffice authoring, and session management.
+See `tech.md` for the full stack. See `prd.md` for the original product requirements document.
 
 ---
 _Focus on patterns and purpose, not exhaustive feature lists_

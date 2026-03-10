@@ -104,7 +104,7 @@ mise run backend:verify   # Full verify lifecycle (compile + test + package)
 | `AWS_ACCESS_KEY_ID` | backend | MinIO access key |
 | `AWS_SECRET_ACCESS_KEY` | backend | MinIO secret key |
 | `OAUTH_CALLBACK_BASE_URL` | backend | Base URL for OAuth redirect callbacks |
-| `BACKOFFICE_ORIGIN` | backend | CORS allowed origin for the frontend |
+| `FRONTEND_ORIGIN` | backend | CORS allowed origin for the unified frontend (`/backoffice` + `/frontoffice`) |
 | `JWT_SECRET` | backend | Secret for JWT signing |
 
 ---

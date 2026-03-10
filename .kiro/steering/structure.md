@@ -124,7 +124,7 @@ ch.welld.soa.automation/
 │   ├── MarkdownImportService.kt
 │   └── AssetService.kt
 └── common/
-    └── model/                      # Result<T>, DomainError — do NOT modify
+    └── model/                      # Result<T>, DomainError — shared infrastructure; extend carefully
 ```
 
 ### Naming Conventions
