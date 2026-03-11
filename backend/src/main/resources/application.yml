@@ -12,6 +12,10 @@ spring:
     oauth2:
       client:
         registration:
+          x:
+            client-id: ${X_CLIENT_ID:}
+            client-secret: ${X_CLIENT_SECRET:}
+            scope: users.read,tweet.read
           google:
             client-id: ${GOOGLE_CLIENT_ID:}
             client-secret: ${GOOGLE_CLIENT_SECRET:}
