@@ -171,9 +171,17 @@ backend/src/main/resources/db/changelog/
 Each SQL changeset file format:
 ```sql
 -- liquibase formatted sql
+
 -- changeset stageboard:<NNN>
+-- comment: <Description of what this changeset does>
 CREATE TABLE ...;
+-- rollback DROP TABLE IF EXISTS ...;
 ```
+
+Every changeset **must** include:
+- `-- comment:` — a human-readable description of the change
+- `-- rollback` — the reverse DDL (in dependency order for multi-statement changesets)
+- PostgreSQL-specific DDL (extensions, JSONB casts, GIN indexes) goes in a separate changeset with `dbms:postgresql`
 
 ---
 

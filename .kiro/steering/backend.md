@@ -35,7 +35,7 @@ fun findWorkshop(id: UUID): Workshop  // throws NotFoundException
 Use `Result.catching { }` at infrastructure boundaries (repository calls, external HTTP, file I/O).
 Use `map`, `flatMap`, `fold`, `recoverWith` to chain operations without nesting.
 
-**DomainError → HTTP status mapping** (enforced in the global exception handler / controller advice):
+**DomainError → HTTP status mapping** (enforced via `Result.toResponseEntity()` — no `@ControllerAdvice`):
 
 | DomainError       | HTTP |
 |-------------------|------|
