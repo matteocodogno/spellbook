@@ -7,14 +7,11 @@ stageboard/
 ├── backend/                        # Spring Boot / Kotlin REST API (Maven)
 │   ├── src/
 │   │   ├── main/kotlin/io/stageboard/spellbook/
-│   │   │   ├── auth/               # AuthController, AuthService
-│   │   │   ├── workshop/           # WorkshopController, WorkshopService, WorkshopRepository
-│   │   │   ├── phase/
-│   │   │   ├── step/
-│   │   │   ├── lock/
-│   │   │   ├── version/
-│   │   │   ├── import/
-│   │   │   └── common/             # Result<T>, DomainError, extensions
+│   │   │   ├── auth/               # Identity, login, OAuth, JWT, team membership
+│   │   │   ├── design/             # Workshop authoring: CRUD, phases, steps, locking, versioning
+│   │   │   ├── edition/            # Live session delivery: sessions, participant progress, notes
+│   │   │   ├── import/             # Ingest content from external sources (Markdown → workshop)
+│   │   │   └── common/             # Result<T>, DomainError, extensions (open module)
 │   │   └── main/resources/
 │   │       └── db/changelog/       # Liquibase SQL changelogs
 │   ├── target/generated-sources/jooq/  # jOOQ Kotlin records (generated; not committed)
@@ -97,43 +94,68 @@ Feature-thin, concern-layered within each route tree.
 
 ## Backend Conventions
 
-Domain-driven package structure; one package per bounded context.
+Spring Modulith modules: one top-level package per bounded context. Each module exposes a public API through an `Operations` interface; everything else lives in `internal/` and is invisible to other modules.
 
-### Package Layout
+### Standard Module Layout
+
+Every business module follows the same structure:
+
+```
+io.stageboard.spellbook.{module}/
+├── {Module}Operations.kt       # Public interface — sole cross-module entry point
+├── {Domain}Dto.kt              # Public DTOs returned by Operations (data class, val only)
+└── internal/                   # Private — Spring Modulith enforces this boundary
+    ├── {Domain}.kt             # Internal domain model
+    ├── {Module}Controller.kt
+    ├── {Module}Service.kt
+    └── {Module}Repository.kt
+```
+
+### Full Package Layout
 
 ```
 io.stageboard.spellbook/
 ├── auth/
-│   ├── AuthController.kt
-│   ├── AuthService.kt
-│   └── UserRepository.kt
-├── workshop/
-│   ├── WorkshopController.kt
-│   ├── WorkshopService.kt
-│   └── WorkshopRepository.kt
-├── phase/ ...
-├── step/
-│   ├── StepController.kt
-│   ├── StepService.kt
-│   ├── StepRepository.kt
-│   └── StepContentValidator.kt
-├── lock/ ...
-├── version/ ...
+│   ├── AuthOperations.kt           # public: currentUser (used by design, edition)
+│   ├── UserDto.kt
+│   └── internal/
+│       ├── AuthController.kt
+│       ├── AuthService.kt
+│       └── UserRepository.kt
+├── design/
+│   ├── DesignOperations.kt         # public: getWorkshopContent, exists (used by edition, import)
+│   ├── WorkshopDto.kt              # public DTOs returned to other modules
+│   └── internal/
+│       ├── workshop/               # Workshop CRUD, team scoping
+│       ├── phase/                  # Phase management, position ordering
+│       ├── step/                   # Step management, typed content validation
+│       ├── lock/                   # Pessimistic locking, TTL expiry
+│       └── version/                # Snapshot publish, restore
+├── edition/
+│   ├── EditionOperations.kt        # public: (future cross-module needs)
+│   ├── SessionDto.kt
+│   └── internal/
+│       ├── SessionController.kt    # Trainer broadcast, participant tracking
+│       ├── SessionService.kt
+│       └── SessionRepository.kt   # sessions, participant_progress, notes tables
 ├── import/
-│   ├── ImportController.kt
-│   ├── MarkdownImportService.kt
-│   └── AssetService.kt
-└── common/
-    └── model/                      # Result<T>, DomainError — shared infrastructure; extend carefully
+│   └── internal/
+│       ├── ImportController.kt
+│       ├── MarkdownImportService.kt
+│       └── AssetService.kt
+└── common/                         # @ApplicationModule(type = Type.OPEN) — visible to all
+    ├── model/                      # Result<T>, DomainError
+    └── ext/                        # Result.toResponseEntity(), shared extensions
 ```
 
 ### Naming Conventions
 
-- Controller: `{Domain}Controller.kt`
-- Service: `{Domain}Service.kt`
-- Repository: `{Domain}Repository.kt`
-- DTOs: `{Domain}Request.kt` / `{Domain}Response.kt`
-- Domain models: `{Domain}.kt` (pure `data class`, no Spring annotations)
+- Public interface: `{Module}Operations.kt`
+- Public DTOs: `{Domain}Dto.kt` (in module root package)
+- Controller: `internal/.../{Domain}Controller.kt`
+- Service: `internal/.../{Domain}Service.kt`
+- Repository: `internal/.../{Domain}Repository.kt`
+- Internal domain model: `internal/.../{Domain}.kt` (pure `data class`, no Spring annotations)
 
 ### Liquibase Changelogs
 

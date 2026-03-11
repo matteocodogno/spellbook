@@ -46,7 +46,7 @@
   - All results wired through `Result.toResponseEntity()`
   - _Requirements: 1_
 
-- [ ] 4. Implement workshop CRUD with team scoping
+- [ ] 4. Implement workshop CRUD with team scoping — **`design` module** (`design/internal/workshop/`)
 
 - [ ] 4.1 Implement the workshop repository with paginated list
   - Create the `Workshop` and `WorkshopSummary` domain data classes
@@ -60,7 +60,7 @@
   - Implement `WorkshopController`: `POST/GET /api/workshops`, `GET/PUT/DELETE /api/workshops/:id`; status codes 201 / 200 / 204
   - _Requirements: 2, 3_
 
-- [ ] 5. (P) Implement phase management with gapless position ordering
+- [ ] 5. (P) Implement phase management with gapless position ordering — **`design` module** (`design/internal/phase/`)
 
 - [ ] 5.1 Implement the phase repository with batch position updates
   - Create the `Phase` domain data class
@@ -73,7 +73,7 @@
   - Implement `PhaseController`: `POST /api/workshops/:workshopId/phases`, `PUT .../phases/:phaseId`, `DELETE .../phases/:phaseId`, `PATCH .../phases/order`
   - _Requirements: 4_
 
-- [ ] 6. Implement step management with typed content validation and atomic cross-phase moves
+- [ ] 6. Implement step management with typed content validation and atomic cross-phase moves — **`design` module** (`design/internal/step/`)
 
 - [ ] 6.1 Implement the step content validator
   - Implement `StepContentValidator`: accepts a `StepUpdatePayload` and the persisted step type; validates poll options count (2–8), break `durationMinutes` (> 0 when present), type field mismatch; returns `Result.Failure(ValidationError)` with `fields` populated, or `Result.Success`
@@ -90,7 +90,7 @@
   - Implement `StepController`: `POST /api/phases/:phaseId/steps`, `PATCH .../steps/:stepId`, `DELETE .../steps/:stepId`, `PATCH .../steps/order`, `PATCH .../steps/:stepId/move`
   - _Requirements: 5, 6_
 
-- [ ] 7. (P) Implement pessimistic workshop locking with TTL expiry
+- [ ] 7. (P) Implement pessimistic workshop locking with TTL expiry — **`design` module** (`design/internal/lock/`)
 
 - [ ] 7.1 Implement the lock repository and service
   - Implement `LockRepository`: `findActiveLock` (`WHERE expires_at > NOW()`), `upsertLock` (`INSERT … ON CONFLICT DO UPDATE` for expired or absent locks), `extendLock` (`UPDATE … WHERE locked_by = userId`; returns false when row not updated — caller is not holder), `deleteLock`
@@ -104,7 +104,7 @@
   - `GET` on a locked workshop must still return 200 (lock does not block reads)
   - _Requirements: 8_
 
-- [ ] 8. (P) Implement workshop versioning, publish, and restore
+- [ ] 8. (P) Implement workshop versioning, publish, and restore — **`design` module** (`design/internal/version/`)
 
 - [ ] 8.1 Implement the version repository and service
   - Implement `VersionRepository`: `insert` (stores full JSONB snapshot), `findByWorkshop` (sorted by `published_at DESC`), `findById`, `findLatestLabel`
@@ -117,7 +117,7 @@
   - Map `ValidationError` with code `EMPTY_WORKSHOP` to HTTP 422 in the controller (override default 400)
   - _Requirements: 7_
 
-- [ ] 9. (P) Implement Markdown import with asset upload and two-phase preview/confirm
+- [ ] 9. (P) Implement Markdown import with asset upload and two-phase preview/confirm — **`import` module** (`import/internal/`)
 
 - [ ] 9.1 Implement the asset service for MinIO uploads
   - Configure an `S3Client` bean with `endpointOverride` (MINIO_ENDPOINT env var), path-style access forced, and credentials from `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`
