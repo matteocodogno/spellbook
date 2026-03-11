@@ -14,6 +14,7 @@
 | Schema migrations | **Liquibase 5.x** (`liquibase-spring-boot-starter`) | SQL format changelogs (`db/changelog/changes/*.sql`); auto-applied at startup |
 | Module boundaries | **Spring Modulith 2.0.x** | Enforces package-level module isolation at test time |
 | Build | Maven + `kotlin-maven-plugin` + `spring-boot-maven-plugin` | `jooq-codegen-maven` bound to `generate-sources`; `mvn spring-boot:run` for local dev |
+| Code formatting | ktlint via `ktlint-maven-plugin` 3.5.0 | Enforces Kotlin style; run `mise run backend:format` after every Kotlin file edit |
 
 ---
 

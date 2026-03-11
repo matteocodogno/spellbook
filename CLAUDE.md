@@ -34,6 +34,7 @@ stageboard/
 - `mise run backend:test` — run all tests
 - `mise run backend:codegen` — regenerate jOOQ Kotlin records from Liquibase changelogs
 - `mise run backend:verify` — full verify lifecycle (compile + test + package)
+- `mise run backend:format` — format all Kotlin source files with ktlint
 
 ## Frontend code style
 - TypeScript strict mode — no `any`, no `@ts-ignore` without an explanatory comment
@@ -52,6 +53,7 @@ stageboard/
 
 ## Backend code style
 - Kotlin 2.3, JVM 21 — functional idioms; no Java source files
+- Run `mise run backend:format` after every Kotlin file edit
 - Spring MVC (blocking) only — no WebFlux, Reactor, or Coroutines in the API layer
 - All fallible operations return `Result<T>` from `io.stageboard.spellbook.common.model` — never throw as control flow
 - Use `Result.catching { }` at infrastructure boundaries; chain with `map`, `flatMap`, `fold`
@@ -64,10 +66,11 @@ stageboard/
   - `design` sub-contexts (`workshop/`, `phase/`, `step/`, `lock/`, `version/`) communicate freely inside `design/internal/`
 
 ## Pre-commit checklist (run in order, block commit if any fail)
-1. `mise run typecheck` — zero frontend type errors
-2. `mise run lint` — zero frontend lint errors
-3. `mise run build` — frontend production build must succeed
-4. `mise run backend:verify` — backend compile + test + package must pass
+1. `mise run backend:format` — Kotlin source must be ktlint-clean (no changes produced)
+2. `mise run typecheck` — zero frontend type errors
+3. `mise run lint` — zero frontend lint errors
+4. `mise run build` — frontend production build must succeed
+5. `mise run backend:verify` — backend compile + test + package must pass
 
 ## Commit message rules (Conventional Commits)
 - Format: `<type>(<scope>): <description>`
