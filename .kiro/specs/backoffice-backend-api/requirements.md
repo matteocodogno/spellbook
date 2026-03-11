@@ -285,9 +285,7 @@ the frontend can map errors predictably.
    (e.g. `lockedBy`, `lockedAt`).
 5. When a `DomainError.DatabaseError` or `DomainError.UnexpectedError` is produced, the API shall return 500 and log
    the full stack trace server-side; the response body shall not expose internal details.
-6. The API shall expose a single global `@ControllerAdvice` that converts `Result.Failure` to `ResponseEntity` using the
-   `DomainError → HTTP` mapping; no controller shall manually handle exceptions.
-7. All `Result.Success` values shall be converted to `ResponseEntity` via a shared `Result.toResponseEntity()`
+6. All `Result.Success` values shall be converted to `ResponseEntity` via a shared `Result.toResponseEntity()`
    extension function, with the HTTP status determined by the operation type (201 for create, 200 for read/update, 204
    for delete).
 

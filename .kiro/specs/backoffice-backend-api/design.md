@@ -51,78 +51,111 @@ Controller  →  Service  →  Repository  →  Database
 
 ### Architecture Pattern & Boundary Map
 
-The service follows the **Layered Architecture** pattern with strict package boundaries per domain area.
+The service is structured as a **Spring Modulith** application. Four top-level packages are modules; `common` is an open shared kernel. Within modules, all implementation lives in `internal/` and is invisible to other modules. Cross-module access is exclusively via `{Module}Operations` interfaces returning DTOs — never via internal domain classes.
+
+```
+io.stageboard.spellbook/
+├── common/                     # @ApplicationModule(type = OPEN) — shared kernel
+│   ├── model/                  # Result<T>, DomainError
+│   └── ext/                    # Result.toResponseEntity(), shared extensions
+├── auth/                       # auth module
+│   ├── AuthOperations.kt       # public: currentUser()
+│   ├── UserDto.kt
+│   └── internal/               # AuthController, AuthService, UserRepository, SecurityConfig
+├── design/                     # design module — all workshop authoring
+│   ├── DesignOperations.kt     # public: getWorkshopContent(), exists()
+│   ├── WorkshopDto.kt          # public DTOs for cross-module use
+│   └── internal/
+│       ├── workshop/           # WorkshopController, WorkshopService, WorkshopRepository
+│       ├── phase/              # PhaseController, PhaseService, PhaseRepository
+│       ├── step/               # StepController, StepService, StepRepository, StepContentValidator
+│       ├── lock/               # LockController, LockService, LockRepository
+│       └── version/            # VersionController, VersionService, VersionRepository
+└── import/                     # import module
+    └── internal/               # ImportController, MarkdownImportService, AssetService
+```
 
 ```mermaid
 graph TB
-    subgraph API[Spring MVC API Layer]
-        AuthCtrl[AuthController]
-        WorkshopCtrl[WorkshopController]
-        PhaseCtrl[PhaseController]
-        StepCtrl[StepController]
-        LockCtrl[LockController]
-        VersionCtrl[VersionController]
-        ImportCtrl[ImportController]
+    subgraph Common["common (open kernel)"]
+        Result["Result&lt;T&gt; / DomainError"]
+        ResultExt["Result.toResponseEntity()"]
     end
 
-    subgraph Service[Service Layer]
-        AuthSvc[AuthService]
-        WorkshopSvc[WorkshopService]
-        PhaseSvc[PhaseService]
-        StepSvc[StepService]
-        LockSvc[LockService]
-        VersionSvc[VersionService]
-        ImportSvc[MarkdownImportService]
-        AssetSvc[AssetService]
+    subgraph AuthMod["auth module"]
+        AuthOps["AuthOperations (public)"]
+        AuthCtrl["AuthController"]
+        AuthSvc["AuthService"]
+        UserRepo["UserRepository"]
+        SecCfg["SecurityConfig / JwtFilter"]
     end
 
-    subgraph Repository[Repository Layer]
-        UserRepo[UserRepository]
-        WorkshopRepo[WorkshopRepository]
-        PhaseRepo[PhaseRepository]
-        StepRepo[StepRepository]
-        LockRepo[LockRepository]
-        VersionRepo[VersionRepository]
+    subgraph DesignMod["design module"]
+        DesignOps["DesignOperations (public)"]
+        WorkshopCtrl["workshop/WorkshopController"]
+        PhaseCtrl["phase/PhaseController"]
+        StepCtrl["step/StepController"]
+        LockCtrl["lock/LockController"]
+        VersionCtrl["version/VersionController"]
     end
 
-    subgraph Infra[Infrastructure]
-        DSL[jOOQ DSLContext]
-        S3[S3Client MinIO]
-        Security[Spring Security]
-        JWT[JwtEncoder / JwtDecoder]
+    subgraph ImportMod["import module"]
+        ImportCtrl["ImportController"]
+        ImportSvc["MarkdownImportService"]
+        AssetSvc["AssetService"]
     end
 
-    subgraph DB[PostgreSQL]
-        Tables[(Tables)]
+    subgraph Infra["Infrastructure"]
+        DSL["jOOQ DSLContext"]
+        S3["S3Client (MinIO)"]
+        Security["Spring Security"]
+        JWT["JwtEncoder / JwtDecoder"]
     end
 
-    subgraph External[External OAuth Providers]
-        Google[Google OIDC]
-        GitHub[GitHub OAuth2]
-        XTwitter[X OAuth2]
+    subgraph DB["PostgreSQL"]
+        Tables[("7 Tables")]
     end
 
-    API --> Service
-    Service --> Repository
-    Repository --> DSL
-    DSL --> Tables
-    ImportSvc --> AssetSvc
-    AssetSvc --> S3
-    AuthSvc --> Security
-    Security --> JWT
-    Security --> Google
-    Security --> GitHub
-    Security --> XTwitter
-    ResultExt[Result.toResponseEntity\(\)]
-    ResultExt --> API
+    ImportMod -->|"DesignOperations"| DesignOps
+    AuthMod --> Common
+    DesignMod --> Common
+    ImportMod --> Common
+    DesignMod --> DSL --> Tables
+    AuthMod --> DSL
+    AuthMod --> Security --> JWT
+    ImportSvc --> AssetSvc --> S3
 ```
 
 **Architecture Integration**:
 
-- Selected pattern: Layered — Controller converts `Result<T>` to `ResponseEntity`; Service owns business logic; Repository wraps all DB calls in `Result.catching { }`.
-- Domain boundaries: each domain area (workshop, phase, step, lock, version, import) has its own controller, service, and repository.
+- Selected pattern: **Spring Modulith** (module isolation) + **Layered Architecture** (within each module). Controller converts `Result<T>` to `ResponseEntity`; Service owns business logic; Repository wraps all DB calls in `Result.catching { }`.
+- Module boundaries: `design` encapsulates all workshop authoring sub-contexts (`workshop/`, `phase/`, `step/`, `lock/`, `version/`) in `internal/`. `import` accesses `design` only via `DesignOperations`.
 - Existing patterns preserved: `Result<T>` + `DomainError`, `data class` domain types, no `var` in service/domain layer.
-- Steering compliance: Spring MVC blocking, jOOQ only, no JPA, no WebFlux.
+- New components: `DesignOperations.kt` (public interface), `WorkshopDto.kt` (cross-module DTOs), `package-info.kt` with `@ApplicationModule(type = Type.OPEN)` on `common`.
+- Steering compliance: Spring MVC blocking, jOOQ only, no JPA, no WebFlux, no circular module dependencies.
+
+### Spring Modulith Module Rules
+
+- `internal/` subpackage is enforced by Spring Modulith at test time — any violation fails `@ApplicationModuleTest`.
+- Cross-module access: only via `{Module}Operations` returning DTOs. Never access `internal/` classes from another module.
+- `common` is `Type.OPEN` — its `Result<T>`, `DomainError`, and extension functions are visible to all modules without going through an Operations interface.
+- `design` sub-contexts (`workshop/`, `phase/`, `step/`, `lock/`, `version/`) communicate directly within `design/internal/` — no Operations interface between them.
+- Every module must have a corresponding `@ApplicationModuleTest` that calls `module.verify()`.
+
+#### DesignOperations Interface
+
+The public contract of the `design` module. Used by `import` to append phases and steps to a workshop draft.
+
+```kotlin
+// io.stageboard.spellbook.design.DesignOperations
+interface DesignOperations {
+    fun getWorkshopContent(workshopId: UUID, teamId: UUID): Result<WorkshopDto>
+    fun exists(workshopId: UUID, teamId: UUID): Result<Boolean>
+    fun appendContent(workshopId: UUID, phases: List<ImportPhaseDto>, teamId: UUID, editorId: UUID): Result<WorkshopDto>
+}
+```
+
+`WorkshopDto` (and nested `PhaseDto`, `StepDto`) are defined in `io.stageboard.spellbook.design` (module root package), not in `internal/`.
 
 ### Technology Stack
 
@@ -255,39 +288,40 @@ sequenceDiagram
 
 ### Summary Table
 
-| Component                | Layer       | Intent                                                          | Req Coverage  | Key Dependencies              |
-|--------------------------|-------------|-----------------------------------------------------------------|---------------|-------------------------------|
-| AuthController           | API         | OAuth redirect, email/password login, me, logout                | 1.1–1.9       | AuthService, SecurityConfig   |
-| WorkshopController       | API         | Workshop CRUD endpoints                                         | 3.1–3.8       | WorkshopService               |
-| PhaseController          | API         | Phase CRUD + order endpoints                                    | 4.1–4.6       | PhaseService                  |
-| StepController           | API         | Step CRUD + order + move endpoints                              | 5.1–5.8       | StepService                   |
-| LockController           | API         | Acquire / heartbeat / release lock                              | 8.1–8.8       | LockService                   |
-| VersionController        | API         | Publish, list, restore endpoints                                | 7.1–7.8       | VersionService                |
-| ImportController         | API         | Markdown import preview + confirm                               | 9.1–9.9       | MarkdownImportService         |
-| `Result.toResponseEntity()` | common/ext | Convert `Result<T>` → `ResponseEntity`; `DomainError` → HTTP status + body | 10.1–10.7 | DomainError              |
-| AuthService              | Service     | OAuth user upsert, email/password verification, JWT issuance    | 1.1–1.9       | UserRepository, JwtEncoder    |
-| WorkshopService          | Service     | Business logic: team scoping, CRUD, cascade delete              | 2.1–2.5, 3.1–3.8 | WorkshopRepository         |
-| PhaseService             | Service     | Phase lifecycle + gapless position management                   | 4.1–4.6       | PhaseRepository               |
-| StepService              | Service     | Step lifecycle + typed validation + cross-phase move            | 5.1–5.8, 6.1–6.5 | StepRepository, StepContentValidator |
-| LockService              | Service     | Lock acquisition, TTL check, heartbeat, release                 | 8.1–8.8       | LockRepository                |
-| VersionService           | Service     | Atomic publish transaction, version label computation, restore  | 7.1–7.8       | VersionRepository             |
-| MarkdownImportService    | Service     | Markdown parse, image extraction, preview store, confirm        | 9.1–9.9       | AssetService, ImportSessionStore |
-| AssetService             | Service     | Upload bytes to MinIO; return hosted URL                        | 9.6           | S3Client                      |
-| StepContentValidator     | Service     | Validate StepUpdatePayload against step type                    | 6.1–6.5       | —                             |
-| UserRepository           | Repository  | User upsert by OAuth sub / email lookup                         | 1.1–1.9       | DSLContext                    |
-| WorkshopRepository       | Repository  | CRUD + paginated list with team filter                          | 3.1–3.8       | DSLContext                    |
-| PhaseRepository          | Repository  | Phase CRUD + batch position UPDATE                              | 4.1–4.6       | DSLContext                    |
-| StepRepository           | Repository  | Step CRUD + batch position UPDATE + cross-phase move            | 5.1–5.8       | DSLContext                    |
-| LockRepository           | Repository  | Lock upsert, TTL query, delete                                  | 8.1–8.8       | DSLContext                    |
-| VersionRepository        | Repository  | Version INSERT (JSONB snapshot) + list + restore copy           | 7.1–7.8       | DSLContext                    |
-| ImportSessionStore       | Infra       | In-memory `ConcurrentHashMap` of preview sessions, 10-min TTL  | 9.1–9.9       | ScheduledExecutorService      |
-| SecurityConfig           | Infra       | `SecurityFilterChain`: OAuth2 client, JWT cookie filter, CORS  | 1.1–1.9       | Spring Security               |
+| Component                | Module      | Layer       | Package Path                                          | Intent                                                          | Req Coverage  |
+|--------------------------|-------------|-------------|-------------------------------------------------------|------------------------------------------------------------------|---------------|
+| `Result.toResponseEntity()` | common   | ext         | `common/ext/ResultExt.kt`                             | Convert `Result<T>` → `ResponseEntity`; `DomainError` → HTTP status + body | 10.1–10.7 |
+| `DesignOperations`       | design      | Public API  | `design/DesignOperations.kt`                          | Cross-module interface for import/edition to access workshop content | 9.1–9.9 |
+| AuthController           | auth        | API         | `auth/internal/AuthController.kt`                    | OAuth redirect, email/password login, me, logout                | 1.1–1.9       |
+| SecurityConfig           | auth        | Infra       | `auth/internal/SecurityConfig.kt`                    | `SecurityFilterChain`: OAuth2 client, JWT cookie filter, CORS   | 1.1–1.9       |
+| AuthService              | auth        | Service     | `auth/internal/AuthService.kt`                       | OAuth user upsert, email/password verification, JWT issuance    | 1.1–1.9       |
+| UserRepository           | auth        | Repository  | `auth/internal/UserRepository.kt`                    | User upsert by OAuth sub / email lookup                         | 1.1–1.9       |
+| WorkshopController       | design      | API         | `design/internal/workshop/WorkshopController.kt`     | Workshop CRUD endpoints                                         | 3.1–3.8       |
+| WorkshopService          | design      | Service     | `design/internal/workshop/WorkshopService.kt`        | Business logic: team scoping, CRUD, cascade delete              | 2.1–2.5, 3.1–3.8 |
+| WorkshopRepository       | design      | Repository  | `design/internal/workshop/WorkshopRepository.kt`     | CRUD + paginated list with team filter                          | 3.1–3.8       |
+| PhaseController          | design      | API         | `design/internal/phase/PhaseController.kt`           | Phase CRUD + order endpoints                                    | 4.1–4.6       |
+| PhaseService             | design      | Service     | `design/internal/phase/PhaseService.kt`              | Phase lifecycle + gapless position management                   | 4.1–4.6       |
+| PhaseRepository          | design      | Repository  | `design/internal/phase/PhaseRepository.kt`           | Phase CRUD + batch position UPDATE                              | 4.1–4.6       |
+| StepController           | design      | API         | `design/internal/step/StepController.kt`             | Step CRUD + order + move endpoints                              | 5.1–5.8       |
+| StepService              | design      | Service     | `design/internal/step/StepService.kt`                | Step lifecycle + typed validation + cross-phase move            | 5.1–5.8, 6.1–6.5 |
+| StepContentValidator     | design      | Service     | `design/internal/step/StepContentValidator.kt`       | Validate StepUpdatePayload against step type                    | 6.1–6.5       |
+| StepRepository           | design      | Repository  | `design/internal/step/StepRepository.kt`             | Step CRUD + batch position UPDATE + cross-phase move            | 5.1–5.8       |
+| LockController           | design      | API         | `design/internal/lock/LockController.kt`             | Acquire / heartbeat / release lock                              | 8.1–8.8       |
+| LockService              | design      | Service     | `design/internal/lock/LockService.kt`                | Lock acquisition, TTL check, heartbeat, release                 | 8.1–8.8       |
+| LockRepository           | design      | Repository  | `design/internal/lock/LockRepository.kt`             | Lock upsert, TTL query, delete                                  | 8.1–8.8       |
+| VersionController        | design      | API         | `design/internal/version/VersionController.kt`       | Publish, list, restore endpoints                                | 7.1–7.8       |
+| VersionService           | design      | Service     | `design/internal/version/VersionService.kt`          | Atomic publish transaction, version label computation, restore  | 7.1–7.8       |
+| VersionRepository        | design      | Repository  | `design/internal/version/VersionRepository.kt`       | Version INSERT (JSONB snapshot) + list + restore copy           | 7.1–7.8       |
+| ImportController         | import      | API         | `import/internal/ImportController.kt`                | Markdown import preview + confirm                               | 9.1–9.9       |
+| MarkdownImportService    | import      | Service     | `import/internal/MarkdownImportService.kt`           | Markdown parse, image extraction, preview store, confirm        | 9.1–9.9       |
+| AssetService             | import      | Service     | `import/internal/AssetService.kt`                    | Upload bytes to MinIO; return hosted URL                        | 9.6           |
+| ImportSessionStore       | import      | Infra       | `import/internal/ImportSessionStore.kt`              | In-memory `ConcurrentHashMap` of preview sessions, 10-min TTL  | 9.1–9.9       |
 
 ---
 
 ### API Layer
 
-#### Result → ResponseEntity Conversion (`common/ext`)
+#### Result → ResponseEntity Conversion (`common/ext/ResultExt.kt`)
 
 | Field        | Detail                                                                                  |
 |--------------|-----------------------------------------------------------------------------------------|
@@ -734,71 +768,71 @@ User (Entity)
 
 ### Physical Data Model (PostgreSQL)
 
+All 7 tables are defined in `db/changelog/changes/001-initial-schema.sql`. The changelog uses a two-changeset strategy for H2/PostgreSQL compatibility:
+- **Main changeset** (`changeset stageboard:001`): H2-compatible DDL — `TIMESTAMP WITH TIME ZONE`, `JSON`, UUID PKs without `DEFAULT uuid_generate_v4()` (application provides UUIDs).
+- **PostgreSQL changeset** (`dbms:postgresql`): converts `content` and `snapshot` columns to `JSONB`; adds GIN index; `CREATE EXTENSION "uuid-ossp"` lives in a separate `000-install-extensions.sql` with `dbms:postgresql`.
+
+The effective PostgreSQL schema (after both changesets apply) is:
+
 ```sql
--- Liquibase SQL changeset: db/changelog/changes/001-initial-schema.sql
--- liquibase formatted sql
--- changeset stageboard:001
-
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
 CREATE TABLE teams (
-    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id          UUID PRIMARY KEY,
     name        TEXT NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE users (
-    id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id             UUID PRIMARY KEY,
     team_id        UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
     email          TEXT NOT NULL UNIQUE,
     name           TEXT NOT NULL,
     password_hash  TEXT,
     oauth_provider TEXT,
     oauth_sub      TEXT,
-    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at     TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE workshops (
-    id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    team_id               UUID NOT NULL REFERENCES teams(id),
-    title                 TEXT NOT NULL,
-    draft_modified_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    last_editor_id        UUID REFERENCES users(id),
+    id                      UUID PRIMARY KEY,
+    team_id                 UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    title                   TEXT NOT NULL,
+    draft_modified_at       TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    last_editor_id          UUID REFERENCES users(id),
     published_version_label TEXT,
-    created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at              TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 CREATE INDEX workshops_team_modified ON workshops(team_id, draft_modified_at DESC);
 
 CREATE TABLE phases (
-    id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id                UUID PRIMARY KEY,
     workshop_id       UUID NOT NULL REFERENCES workshops(id) ON DELETE CASCADE,
     title             TEXT NOT NULL,
     estimated_minutes INT NOT NULL CHECK (estimated_minutes > 0),
     position          INT NOT NULL,
-    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at        TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     UNIQUE (workshop_id, position)
 );
 CREATE INDEX phases_workshop_position ON phases(workshop_id, position);
 
 CREATE TABLE steps (
-    id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id         UUID PRIMARY KEY,
     phase_id   UUID NOT NULL REFERENCES phases(id) ON DELETE CASCADE,
     type       TEXT NOT NULL,
     position   INT NOT NULL,
-    content    JSONB NOT NULL DEFAULT '{}',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    content    JSONB NOT NULL DEFAULT '{}',   -- JSON in main changeset; JSONB via dbms:postgresql ALTER
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     UNIQUE (phase_id, position)
 );
 CREATE INDEX steps_phase_position ON steps(phase_id, position);
-CREATE INDEX steps_content_gin ON steps USING gin(content jsonb_path_ops);
+CREATE INDEX steps_content_gin ON steps USING gin(content jsonb_path_ops);  -- dbms:postgresql only
 
 CREATE TABLE workshop_versions (
-    id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id            UUID PRIMARY KEY,
     workshop_id   UUID NOT NULL REFERENCES workshops(id) ON DELETE CASCADE,
     version_label TEXT NOT NULL,
     tag           TEXT,
-    snapshot      JSONB NOT NULL,
-    published_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    snapshot      JSONB NOT NULL,   -- JSON in main changeset; JSONB via dbms:postgresql ALTER
+    published_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 CREATE INDEX versions_workshop_published ON workshop_versions(workshop_id, published_at DESC);
 
@@ -806,8 +840,8 @@ CREATE TABLE workshop_locks (
     workshop_id    UUID PRIMARY KEY REFERENCES workshops(id) ON DELETE CASCADE,
     locked_by      UUID NOT NULL REFERENCES users(id),
     locked_by_name TEXT NOT NULL,
-    locked_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    expires_at     TIMESTAMPTZ NOT NULL
+    locked_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    expires_at     TIMESTAMP WITH TIME ZONE NOT NULL
 );
 ```
 
@@ -936,6 +970,19 @@ Controllers call `result.toResponseEntity(successStatus)` to produce the `Respon
 - Lock lifecycle: acquire → heartbeat → release; acquire by second user → 409.
 - Markdown import: multipart upload → preview; confirm → workshop updated.
 
+### Module Boundary Tests (Spring Modulith)
+
+Each module must have an `@ApplicationModuleTest` that calls `module.verify()`:
+
+```kotlin
+@ApplicationModuleTest
+class DesignModuleTest(module: ApplicationModule) {
+    @Test fun verifyModule() { module.verify() }
+}
+```
+
+Tests to write: `AuthModuleTest`, `DesignModuleTest`, `ImportModuleTest`. These catch `internal/` package violations at CI time.
+
 ### Contract Tests
 
 - All endpoints validated against the REST contract table in this document and `backoffice-content-authoring/design.md`.
@@ -1027,99 +1074,66 @@ Controllers call `result.toResponseEntity(successStatus)` to produce the `Respon
   - JSONB fields mapped via `JSONB.jsonb(string)` without custom converters.
   - Batch position updates via `dsl.batch(updateStatements)` inside `dsl.transaction { }`.
 
-**Maven configuration outline** (`pom.xml`):
+**Maven configuration** (implemented in `pom.xml`):
+
+The jOOQ codegen plugin uses `rootPath` to provide filesystem access to Liquibase changelog files. This eliminates the need to pre-copy resources to the classpath at build time. The `LiquibaseDatabase` creates a `DirectoryResourceAccessor` for the path, and `scripts` is resolved relative to it.
 
 ```xml
-<dependencies>
-    <!-- Runtime -->
-    <dependency>
-        <groupId>org.jooq</groupId>
-        <artifactId>jooq</artifactId>
-        <version>3.20.x</version>
-    </dependency>
-    <dependency>
-        <groupId>org.jooq</groupId>
-        <artifactId>jooq-kotlin</artifactId>
-        <version>3.20.x</version>
-    </dependency>
-</dependencies>
-
-<build>
-    <plugins>
-        <!-- Kotlin compiler -->
-        <plugin>
-            <groupId>org.jetbrains.kotlin</groupId>
-            <artifactId>kotlin-maven-plugin</artifactId>
-            <version>2.3.x</version>
-            <executions>
-                <execution>
-                    <id>compile</id>
-                    <goals><goal>compile</goal></goals>
-                    <configuration>
-                        <sourceDirs>
-                            <sourceDir>${project.basedir}/src/main/kotlin</sourceDir>
-                            <sourceDir>${project.build.directory}/generated-sources/jooq</sourceDir>
-                        </sourceDirs>
-                    </configuration>
-                </execution>
-            </executions>
-        </plugin>
-
-        <!-- Spring Boot packaging -->
-        <plugin>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-maven-plugin</artifactId>
-        </plugin>
-
-        <!-- jOOQ code generation from Liquibase changelogs -->
-        <plugin>
+<!-- jOOQ codegen from Liquibase changelogs — no live DB required -->
+<plugin>
+    <groupId>org.jooq</groupId>
+    <artifactId>jooq-codegen-maven</artifactId>
+    <version>${jooq.version}</version>
+    <executions>
+        <execution>
+            <goals><goal>generate</goal></goals>
+            <!-- default phase: generate-sources -->
+        </execution>
+    </executions>
+    <dependencies>
+        <dependency>
             <groupId>org.jooq</groupId>
-            <artifactId>jooq-codegen-maven</artifactId>
-            <version>3.20.x</version>
-            <executions>
-                <execution>
-                    <goals><goal>generate</goal></goals>
-                    <phase>generate-sources</phase>
-                </execution>
-            </executions>
-            <dependencies>
-                <dependency>
-                    <groupId>org.jooq</groupId>
-                    <artifactId>jooq-meta-extensions-liquibase</artifactId>
-                    <version>3.20.x</version>
-                </dependency>
-                <dependency>
-                    <groupId>org.liquibase</groupId>
-                    <artifactId>liquibase-core</artifactId>
-                    <version>5.x</version>
-                </dependency>
-            </dependencies>
-            <configuration>
-                <generator>
-                    <name>org.jooq.codegen.KotlinGenerator</name>
-                    <database>
-                        <name>org.jooq.meta.extensions.liquibase.LiquibaseDatabase</name>
-                        <properties>
-                            <property>
-                                <key>scripts</key>
-                                <value>src/main/resources/db/changelog/db.changelog-master.xml</value>
-                            </property>
-                            <property>
-                                <key>includeLiquibaseTables</key>
-                                <value>false</value>
-                            </property>
-                        </properties>
-                    </database>
-                    <target>
-                        <packageName>io.stageboard.spellbook.generated</packageName>
-                        <directory>target/generated-sources/jooq</directory>
-                    </target>
-                </generator>
-            </configuration>
-        </plugin>
-    </plugins>
-</build>
+            <artifactId>jooq-meta-extensions-liquibase</artifactId>
+            <version>${jooq.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.liquibase</groupId>
+            <artifactId>liquibase-core</artifactId>
+            <version>4.29.2</version> <!-- pinned; avoids plugin classpath conflict with runtime 5.x -->
+        </dependency>
+    </dependencies>
+    <configuration>
+        <detail>true</detail>
+        <generator>
+            <name>org.jooq.codegen.KotlinGenerator</name>
+            <database>
+                <name>org.jooq.meta.extensions.liquibase.LiquibaseDatabase</name>
+                <properties>
+                    <property><key>rootPath</key><value>${basedir}/src/main/resources/db/changelog</value></property>
+                    <property><key>scripts</key><value>db.changelog-master.xml</value></property>
+                    <property><key>includeLiquibaseTables</key><value>false</value></property>
+                    <property><key>database.liquibaseSchemaName</key><value>public</value></property>
+                    <property><key>changeLogParameters.contexts</key><value>!test,!generate_skip</value></property>
+                </properties>
+            </database>
+            <generate>
+                <deprecated>false</deprecated>
+                <records>true</records>
+                <pojos>false</pojos>
+            </generate>
+            <target>
+                <packageName>io.stageboard.spellbook.generated</packageName>
+                <directory>target/generated-sources/jooq</directory>
+            </target>
+            <strategy>
+                <name>org.jooq.codegen.DefaultGeneratorStrategy</name>
+            </strategy>
+        </generator>
+    </configuration>
+</plugin>
 ```
+
+**Liquibase H2 compatibility strategy**: The main changesets use H2-compatible DDL (`TIMESTAMP WITH TIME ZONE`, `JSON` instead of `JSONB`, no `uuid_generate_v4()` defaults, no `CREATE EXTENSION`). PostgreSQL-specific DDL (`ALTER TABLE … TYPE JSONB`, GIN index, `CREATE EXTENSION "uuid-ossp"`) lives in separate `dbms:postgresql` changesets that `LiquibaseDatabase` skips during codegen (H2 context).
 
 - **Consequences**:
   - ✔ Direct JSONB operator support (`->>`, `@>`) without ORM type-mapping hacks.
@@ -1130,6 +1144,28 @@ Controllers call `result.toResponseEntity(successStatus)` to produce the `Respon
   - ✘ More verbose repository layer compared to Spring Data JPA repositories.
 - **Alternatives**: JPA/Hibernate rejected — JSONB requires `@Type` converters and has no native operator support; Gradle rejected in favour of Maven to align with the `jooq-codegen-maven` plugin ecosystem.
 - **References**: `requirements.md` C-06, NFR P-01, P-02, P-03; `research.md` Decision: jOOQ for JSONB.
+
+---
+
+### ADR-002: Spring Modulith for Module Boundary Enforcement
+
+- **Status**: Accepted
+- **Context**: The backend has four bounded contexts (auth, workshop authoring, live delivery, content import). Without enforcement, cross-context access leaks via direct class references, creating tight coupling that makes contexts hard to evolve independently.
+- **Decision**: Use Spring Modulith 2.0.x to enforce package-level module boundaries at test time.
+  - Top-level packages under `io.stageboard.spellbook` are modules: `auth`, `design`, `edition`, `import`, `common`.
+  - `common` is declared `@ApplicationModule(type = Type.OPEN)` — its `Result<T>`, `DomainError`, and extension functions are visible to all modules.
+  - Each module exposes a single `{Module}Operations` interface in its root package; all internal classes live in `internal/` which Spring Modulith treats as private.
+  - Cross-module access via `{Module}Operations` only — returns public DTOs (`{Domain}Dto.kt`) defined in the module root, never internal domain classes.
+  - Module boundaries verified by `@ApplicationModuleTest` in each module's test directory.
+  - `design` is internally divided into sub-contexts (`workshop/`, `phase/`, `step/`, `lock/`, `version/`) inside `design/internal/`; these communicate directly and do not need Operations interfaces between them.
+- **Consequences**:
+  - ✔ Module violations detected at test time — not at runtime.
+  - ✔ Clear public API contracts per module; `internal/` is genuinely inaccessible from other modules.
+  - ✔ `edition` and future modules can be extracted to separate services with minimal interface changes.
+  - ✘ Requires declaring and maintaining `{Module}Operations` interfaces as module APIs evolve.
+  - ✘ Spring Modulith test runs add ~500ms to CI due to module graph analysis.
+- **Alternatives**: Convention-only (no enforcement) — rejected because drift is undetected until code review; separate Maven modules — rejected as over-engineering for this phase.
+- **References**: `steering/backend.md` §6 Spring Modulith; `steering/structure.md` Full Package Layout.
 
 ---
 
