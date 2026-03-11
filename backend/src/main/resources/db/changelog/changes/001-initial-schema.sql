@@ -1,6 +1,7 @@
 -- liquibase formatted sql
 
 -- changeset stageboard:001
+-- comment: Create initial schema with teams, users, workshops, phases, steps, workshop_versions and workshop_locks tables
 CREATE TABLE teams (
     id         UUID PRIMARY KEY,
     name       TEXT NOT NULL,
@@ -68,9 +69,24 @@ CREATE TABLE workshop_locks (
     locked_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     expires_at     TIMESTAMP WITH TIME ZONE NOT NULL
 );
+-- rollback DROP INDEX IF EXISTS versions_workshop_published;
+-- rollback DROP TABLE IF EXISTS workshop_locks;
+-- rollback DROP TABLE IF EXISTS workshop_versions;
+-- rollback DROP INDEX IF EXISTS steps_phase_position;
+-- rollback DROP TABLE IF EXISTS steps;
+-- rollback DROP INDEX IF EXISTS phases_workshop_position;
+-- rollback DROP TABLE IF EXISTS phases;
+-- rollback DROP INDEX IF EXISTS workshops_team_modified;
+-- rollback DROP TABLE IF EXISTS workshops;
+-- rollback DROP TABLE IF EXISTS users;
+-- rollback DROP TABLE IF EXISTS teams;
 
 -- changeset stageboard:001-pg dbms:postgresql runOnChange:true
+-- comment: Convert JSON columns to JSONB and add GIN index for efficient content querying (PostgreSQL only)
 ALTER TABLE steps ALTER COLUMN content TYPE JSONB USING content::JSONB;
 ALTER TABLE steps ALTER COLUMN content SET DEFAULT '{}';
 ALTER TABLE workshop_versions ALTER COLUMN snapshot TYPE JSONB USING snapshot::JSONB;
 CREATE INDEX IF NOT EXISTS steps_content_gin ON steps USING gin(content jsonb_path_ops);
+-- rollback DROP INDEX IF EXISTS steps_content_gin;
+-- rollback ALTER TABLE workshop_versions ALTER COLUMN snapshot TYPE JSON USING snapshot::JSON;
+-- rollback ALTER TABLE steps ALTER COLUMN content TYPE JSON USING content::JSON;
