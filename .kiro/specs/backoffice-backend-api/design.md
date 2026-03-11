@@ -685,7 +685,7 @@ interface VersionRepository {
 - All other paths: require valid JWT from httpOnly cookie.
 - CORS: `allowedOrigins = [FRONTEND_ORIGIN_ENV]`; `allowCredentials = true`.
 - Cookie attributes: `HttpOnly`, `SameSite=Strict`, `Secure`, `Max-Age=86400`.
-- X/Twitter: custom `OAuth2UserService` mapping non-OIDC profile response to `UserPrincipal`.
+- X: custom `OAuth2UserService` mapping non-OIDC profile response to `UserPrincipal` (registered as `x` in `application.yml`).
 
 **JWT Cookie Filter**
 
