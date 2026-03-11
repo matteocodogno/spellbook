@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 
 class ResultExtTest {
-
     // ── Result.toResponseEntity() ────────────────────────────────────────────
 
     @Test
@@ -62,10 +61,11 @@ class ResultExtTest {
 
     @Test
     fun `ValidationError returns 400 with error code and fields`() {
-        val error = DomainError.ValidationError(
-            message = "Validation failed",
-            fields = listOf(FieldError("title", "must not be blank")),
-        )
+        val error =
+            DomainError.ValidationError(
+                message = "Validation failed",
+                fields = listOf(FieldError("title", "must not be blank")),
+            )
 
         val response = error.toResponseEntity()
 
@@ -104,10 +104,11 @@ class ResultExtTest {
 
     @Test
     fun `StateError returns 409 with error, code, and context payload`() {
-        val error = DomainError.StateError(
-            message = "Workshop is locked",
-            context = mapOf("lockedBy" to "Alice", "lockedAt" to "2026-03-11T10:00:00Z"),
-        )
+        val error =
+            DomainError.StateError(
+                message = "Workshop is locked",
+                context = mapOf("lockedBy" to "Alice", "lockedAt" to "2026-03-11T10:00:00Z"),
+            )
 
         val response = error.toResponseEntity()
 

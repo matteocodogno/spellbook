@@ -17,10 +17,14 @@ package io.stageboard.spellbook.common.model
  * The `toException` method allows for converting a `DomainError` into a corresponding
  * exception class based on the specific error type.
  */
+
 /**
  * A single field-level validation failure, carried by [DomainError.ValidationError].
  */
-data class FieldError(val field: String, val message: String)
+data class FieldError(
+    val field: String,
+    val message: String,
+)
 
 sealed class DomainError {
     abstract val message: String

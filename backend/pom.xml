@@ -190,6 +190,13 @@
         <artifactId>spring-boot-maven-plugin</artifactId>
       </plugin>
 
+      <!-- ktlint formatting -->
+      <plugin>
+        <groupId>com.github.gantsign.maven</groupId>
+        <artifactId>ktlint-maven-plugin</artifactId>
+        <version>3.5.0</version>
+      </plugin>
+
       <!-- jOOQ codegen from Liquibase changelogs -->
       <plugin>
         <groupId>org.jooq</groupId>

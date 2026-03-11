@@ -55,3 +55,8 @@ dir = "backend"
 description = "Full backend verify lifecycle (compile + test + package)"
 run = "mvn verify"
 dir = "backend"
+
+[tasks."backend:format"]
+description = "Format all Kotlin source files with ktlint"
+run = "mvn ktlint:format"
+dir = "backend"
