@@ -62,6 +62,7 @@ See `backend.md` for the complete backend stack and coding principles.
 **Summary**:
 - Spring Boot 4.0.x — Spring MVC (blocking)
 - Kotlin 2.3.x (JVM 21); build: Maven + `kotlin-maven-plugin` + `spring-boot-maven-plugin`
+- **Spring Modulith 2.0.x** — module boundary enforcement; 4 modules: `auth`, `design`, `edition`, `import`
 - jOOQ 3.20.x (`jooq` + `jooq-kotlin`) — type-safe SQL DSL; no JPA
 - jOOQ codegen: `jooq-codegen-maven` plugin + `jooq-meta-extensions-liquibase` → Kotlin records generated at `generate-sources` from Liquibase changelogs (no live DB required)
 - PostgreSQL 16
@@ -116,6 +117,7 @@ mise run backend:verify   # Full verify lifecycle (compile + test + package)
 - **No CSS-in-JS**: Tailwind v4 Vite plugin; consistent with the monospace developer aesthetic.
 - **No Redux/Zustand**: TanStack Query covers all server state; React context for minimal local state (`WorkflowContext`, `NotesContext`).
 - **Backend `Result<T>` contract**: all fallible operations return `Result<T>`; never throw as control flow (see `backend.md`).
+- **Spring Modulith module isolation**: 4 top-level modules (`auth`, `design`, `edition`, `import`) plus open `common` kernel. Cross-module access only via `{Module}Operations` interfaces returning DTOs — never internal domain classes. `design` owns all workshop authoring sub-contexts internally (`workshop/`, `phase/`, `step/`, `lock/`, `version/`). See `backend.md §6`.
 
 ---
 _Document standards and patterns, not every dependency_

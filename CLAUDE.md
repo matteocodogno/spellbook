@@ -58,6 +58,10 @@ stageboard/
 - Domain and DTO types are `data class` with `val` fields — no `var` in domain or service layer
 - No JPA/Hibernate — jOOQ only for all database access
 - `DomainError` subtypes: `DatabaseError` | `ValidationError` | `NotFoundError` | `UnexpectedError` | `StateError`
+- **Spring Modulith modules**: `auth` | `design` | `edition` | `import` | `common` (open)
+  - Cross-module access only via `{Module}Operations` interface in the module root package
+  - All implementation classes go in `internal/` — never imported by other modules
+  - `design` sub-contexts (`workshop/`, `phase/`, `step/`, `lock/`, `version/`) communicate freely inside `design/internal/`
 
 ## Pre-commit checklist (run in order, block commit if any fail)
 1. `mise run typecheck` — zero frontend type errors
@@ -68,12 +72,12 @@ stageboard/
 ## Commit message rules (Conventional Commits)
 - Format: `<type>(<scope>): <description>`
 - Types: `feat` | `fix` | `docs` | `style` | `refactor` | `test` | `chore` | `perf` | `ci`
-- Scope = task ID or module name, e.g. `feat(workshop):` or `fix(auth):`
+- Scope = task ID or module name, e.g. `feat(design):` or `fix(auth):`
 - Description: imperative, lowercase, no period, max 72 chars
 - Breaking changes: add `BREAKING CHANGE:` in footer
 - Examples:
   ```
-  feat(workshop): add pessimistic lock on edit
+  feat(design): add pessimistic lock on edit
   fix(auth): handle expired JWT cookie on refresh
   test(import): add markdown parse edge cases
   chore(deps): upgrade spring-boot to 4.0.1
