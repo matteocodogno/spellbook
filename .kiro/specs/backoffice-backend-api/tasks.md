@@ -17,7 +17,7 @@
 
 - [ ] 2. Build the shared infrastructure layer
 
-- [ ] 2.1 (P) Implement the Result → ResponseEntity conversion and error envelope
+- [x] 2.1 (P) Implement the Result → ResponseEntity conversion and error envelope
   - Create a `toResponseEntity()` extension on `Result<T>` that maps `Success` to `ResponseEntity.status(successStatus).body(successBody(value))` and delegates `Failure` to `DomainError.toResponseEntity()`
   - Implement `DomainError.toResponseEntity()`: `ValidationError` → 400 with `{ error, code, fields }`; `NotFoundError` → 404; `StateError` → 409 with `{ error, code } + context`; `DatabaseError`/`UnexpectedError` → 500 with no internal details; log 5xx at `ERROR` with full stack trace server-side
   - All error catching happens inside services and repositories via `Result.catching { }` — no `@ControllerAdvice` is used; controllers only call `.toResponseEntity()` on the `Result` they receive
