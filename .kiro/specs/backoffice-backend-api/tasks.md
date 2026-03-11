@@ -2,15 +2,15 @@
 
 ## Task Summary
 
-- **Total**: 10 major tasks, 20 sub-tasks
+- **Total**: 10 major tasks, 25 sub-tasks
 - **Requirements covered**: 1–11 (all)
-- **Parallel opportunities**: Tasks 5 & 7 (after Task 4); Tasks 8 & 9 (after Task 6); sub-tasks 10.2 & 10.3
+- **Parallel opportunities**: Tasks 5 & 7 (after Task 4); Tasks 7 & 8 (after Tasks 5 & 6); sub-tasks 10.2 & 10.3
 
 ---
 
 - [x] 1. Verify and validate the jOOQ code generation Maven plugin configuration
   - Confirm `jooq-codegen-maven` is bound to the `generate-sources` lifecycle phase in `pom.xml` so that Kotlin records are generated automatically on every `mvn compile` or `mvn package` — no manual step required
-  - Verify the `KotlinGenerator` targets `io.stageboard.spellbook.generated` and reads from `db.changelog-master.xml` via `LiquibaseDatabase` (no live database required at build time)
+  - Verify the `KotlinGenerator` targets `io.stageboard.spellbook.generated` and reads from `db.changelog-master.xml` via `LiquibaseDatabase` using the `rootPath` property (no live database required at build time)
   - Confirm `target/generated-sources/jooq/` is wired as an additional Kotlin compiler source directory so the generated records are visible to hand-written code
   - Run `mise run backend:build` and confirm the build succeeds and Kotlin record classes exist for all 7 tables: `teams`, `users`, `workshops`, `phases`, `steps`, `workshop_versions`, `workshop_locks`
   - _Requirements: 11_
@@ -29,20 +29,26 @@
   - Define the `SecurityFilterChain`: permit `/api/auth/**`; all other paths require a valid JWT in the `session` cookie
   - Implement `JwtCookieAuthenticationFilter` (`OncePerRequestFilter`): extracts cookie value, decodes with `JwtDecoder` via `Result.catching { }`, populates `SecurityContextHolder` on success; unauthenticated requests are rejected by Spring Security's `AuthenticationEntryPoint` returning 401
   - Configure `CorsConfigurationSource` using `FRONTEND_ORIGIN` env var with `allowCredentials = true` and no wildcard origins
-  - Wire `JwtEncoder` and `JwtDecoder` beans backed by the `JWT_SECRET` env var
+  - Wire `JwtEncoder` and `JwtDecoder` beans backed by the `JWT_SECRET` env var using Spring's `NimbusJwtEncoder`/`NimbusJwtDecoder` (from `spring-boot-starter-oauth2-resource-server`)
   - _Requirements: 1, 10_
 
-- [ ] 3. Implement authentication and session management
+- [ ] 2.3 (P) Declare Spring Modulith module annotations
+  - Annotate the `common` package with `@ApplicationModule(type = Type.OPEN)` via a `package-info.kt` file so its `Result<T>`, `DomainError`, and extension functions are visible to all modules without an Operations interface
+  - Verify no `@SpringBootApplication` class or configuration imports `internal/` classes from any module directly
+  - _Requirements: 11_
+
+- [ ] 3. Implement authentication and session management — **`auth` module** (`auth/internal/`)
 
 - [ ] 3.1 Implement the user repository and OAuth success handler
   - Create the `User` domain data class (id, teamId, email, name, passwordHash, oauthProvider, oauthSub)
   - Implement `UserRepository`: upsert by `(oauth_provider, oauth_sub)` for OAuth users; find by email for password login; find by id; all calls wrapped in `Result.catching { }`
   - Implement `JwtCookieSuccessHandler` (`OAuth2AuthenticationSuccessHandler`): retrieves or creates the user and a default team on first login; issues a signed JWT as an `HttpOnly; SameSite=Strict; Secure` cookie with 24 h `Max-Age`; redirects to `OAUTH_CALLBACK_BASE_URL + /backoffice/workshops`
+  - Register a custom `OAuth2UserService` for the `x` provider to map its non-OIDC profile response (no `openid` scope) to a `UserPrincipal`
   - _Requirements: 1_
 
 - [ ] 3.2 Implement the auth service and controller
   - Implement `AuthService`: `login()` verifies bcrypt hash — returns the same `ValidationError` for unknown email and wrong password to prevent enumeration; `me()` reads the authenticated principal from `SecurityContextHolder`; `logout()` clears the cookie with an expired `Max-Age=0` header
-  - Implement `AuthController`: `GET /api/auth/{provider}` triggers Spring Security OAuth2 redirect; `POST /api/auth/login` → 200 + cookie or 401; `GET /api/auth/me` → 200 current user; `POST /api/auth/logout` → 204
+  - Implement `AuthController`: `GET /api/auth/{provider}` triggers Spring Security OAuth2 redirect (providers: `google`, `github`, `x`); `POST /api/auth/login` → 200 + cookie or 401; `GET /api/auth/me` → 200 current user; `POST /api/auth/logout` → 204
   - All results wired through `Result.toResponseEntity()`
   - _Requirements: 1_
 
@@ -59,6 +65,12 @@
   - `teamId` is always sourced from the authenticated principal — never from client parameters; cross-team access returns `NotFoundError`; controller re-maps explicit team mismatch to 403
   - Implement `WorkshopController`: `POST/GET /api/workshops`, `GET/PUT/DELETE /api/workshops/:id`; status codes 201 / 200 / 204
   - _Requirements: 2, 3_
+
+- [ ] 4.3 Define the DesignOperations public interface
+  - Define `DesignOperations` in the `design` module root package with the following contract: `getWorkshopContent(workshopId, teamId): Result<WorkshopDto>`, `exists(workshopId, teamId): Result<Boolean>`, and `appendContent(workshopId, phases, teamId, editorId): Result<WorkshopDto>`
+  - Define the public DTOs (`WorkshopDto`, `PhaseDto`, `StepDto`, `ImportPhaseDto`, `ImportStepDto`) in the module root package — these are the only types visible to other modules
+  - Implement `DesignOperationsImpl` using the `WorkshopService` already built in 4.2; the `appendContent` method depends on phase and step services (will be completed in task 6.4)
+  - _Requirements: 9, 11_
 
 - [ ] 5. (P) Implement phase management with gapless position ordering — **`design` module** (`design/internal/phase/`)
 
@@ -90,6 +102,12 @@
   - Implement `StepController`: `POST /api/phases/:phaseId/steps`, `PATCH .../steps/:stepId`, `DELETE .../steps/:stepId`, `PATCH .../steps/order`, `PATCH .../steps/:stepId/move`
   - _Requirements: 5, 6_
 
+- [ ] 6.4 Complete the DesignOperations appendContent implementation
+  - Implement `DesignOperationsImpl.appendContent()`: appends the provided phases and steps to a workshop draft by delegating to `PhaseService` and `StepService` inside a single transaction; the entire import preview confirm is handled through this interface method
+  - This is the only method in `DesignOperations` that the `import` module calls when confirming an import
+  - Verify that no class from `design/internal/` is referenced directly from the `import` module — all calls go through `DesignOperations`
+  - _Requirements: 9, 11_
+
 - [ ] 7. (P) Implement pessimistic workshop locking with TTL expiry — **`design` module** (`design/internal/lock/`)
 
 - [ ] 7.1 Implement the lock repository and service
@@ -117,7 +135,7 @@
   - Map `ValidationError` with code `EMPTY_WORKSHOP` to HTTP 422 in the controller (override default 400)
   - _Requirements: 7_
 
-- [ ] 9. (P) Implement Markdown import with asset upload and two-phase preview/confirm — **`import` module** (`import/internal/`)
+- [ ] 9. Implement Markdown import with asset upload and two-phase preview/confirm — **`import` module** (`import/internal/`)
 
 - [ ] 9.1 Implement the asset service for MinIO uploads
   - Configure an `S3Client` bean with `endpointOverride` (MINIO_ENDPOINT env var), path-style access forced, and credentials from `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`
@@ -126,16 +144,17 @@
 
 - [ ] 9.2 Implement the Markdown parser and preview session store
   - Implement `MarkdownImportService.parseAndPreview()`: validate file size (> 5 MB → `ValidationError` code `FILE_TOO_LARGE`) and MIME via Apache Tika content inspection (reject non `text/markdown`/`text/plain` → code `UNSUPPORTED_MIME`); traverse the CommonMark AST mapping H2 headings to phases and H3 headings to steps (fallback: no H2 → single phase; no H3 → single Theory step); preserve fenced-code-block language tags in `codeLanguage`; extract base64 images, upload via AssetService, rewrite `data:` URIs to hosted URLs; keep external URLs unchanged
-  - Store preview in a `ConcurrentHashMap<UUID, ImportSession>` keyed by workshopId with a 10-min TTL; schedule cleanup every 5 min using `@Scheduled`
+  - Store preview in a `ConcurrentHashMap<UUID, ImportSession>` keyed by workshopId with a 10-min TTL; schedule cleanup every 5 min using `@Scheduled` (enabled by `@EnableScheduling` on `StageboardApplication`)
   - Depends on 9.1
   - _Requirements: 9_
 
 - [ ] 9.3 Implement the import confirm flow and controller
-  - Implement `MarkdownImportService.confirm()`: look up stored preview by workshopId (400 if expired or absent); validate each entry in `ConfirmImportInput` against the stored preview (400 on any mismatch); append phases and steps where `action = INCLUDE` to the workshop draft via phase/step services inside a transaction
+  - Implement `MarkdownImportService.confirm()`: look up stored preview by workshopId (400 if expired or absent); validate each entry in `ConfirmImportInput` against the stored preview (400 on any mismatch); call `DesignOperations.appendContent()` to append phases and steps where `action = INCLUDE` to the workshop draft — never call phase/step services directly
   - Implement `ImportController`: `POST /api/workshops/:id/import/markdown` (multipart; maps `FILE_TOO_LARGE` → 413, `UNSUPPORTED_MIME` → 415); `POST /api/workshops/:id/import/markdown/confirm` → 200 `Workshop`
+  - Depends on 6.4 (DesignOperations.appendContent implemented)
   - _Requirements: 9_
 
-- [ ] 10. Write integration tests for all critical flows
+- [ ] 10. Write integration tests and verify module boundaries
 
 - [ ] 10.1 Auth and team isolation tests
   - Test OAuth mock-provider flow end-to-end: token exchange → JWT cookie set → `GET /api/auth/me` returns correct principal
@@ -156,3 +175,9 @@
   - Test restore: draft updated with snapshot content; restore blocked when different user holds lock → 409
   - Test Markdown import: valid markdown → preview; confirm with included items → workshop updated; file > 5 MB → 413; non-text MIME → 415; confirm with unknown entries → 400
   - _Requirements: 7, 8, 9_
+
+- [ ] 10.4 Verify Spring Modulith module boundaries
+  - Create `@ApplicationModuleTest` boundary verification tests for `auth`, `design`, and `import` modules — each test calls `module.verify()` to confirm no `internal/` class is accessed from outside its module
+  - Confirm `DesignOperations` is the sole cross-module access point used by `import` and that no `design/internal/` type appears in `import` module source
+  - Run `mise run backend:test` and confirm all module boundary tests pass alongside integration tests
+  - _Requirements: 11_
