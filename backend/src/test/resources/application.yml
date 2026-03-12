@@ -19,3 +19,12 @@ spring:
           x:
             client-id: test-x-id
             client-secret: test-x-secret
+
+app:
+  jwt:
+    secret: test-secret-for-tests-minimum-256-bits-long-padding-here
+    expiration-ms: 86400000
+  cors:
+    allowed-origin: http://localhost:5173
+  oauth:
+    callback-base-url: http://localhost:8080

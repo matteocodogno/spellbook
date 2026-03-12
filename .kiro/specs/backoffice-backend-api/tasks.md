@@ -25,7 +25,7 @@
   - Place extension functions in `common/ext/` package
   - _Requirements: 10_
 
-- [ ] 2.2 (P) Configure Spring Security, JWT cookie handling, and CORS
+- [x] 2.2 (P) Configure Spring Security, JWT cookie handling, and CORS
   - Define the `SecurityFilterChain`: permit `/api/auth/**`; all other paths require a valid JWT in the `session` cookie
   - Implement `JwtCookieAuthenticationFilter` (`OncePerRequestFilter`): extracts cookie value, decodes with `JwtDecoder` via `Result.catching { }`, populates `SecurityContextHolder` on success; unauthenticated requests are rejected by Spring Security's `AuthenticationEntryPoint` returning 401
   - Configure `CorsConfigurationSource` using `FRONTEND_ORIGIN` env var with `allowCredentials = true` and no wildcard origins
